@@ -6,13 +6,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.cda.archi.githubworkspace.clients.RestClient;
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
+import org.cda.archi.githubworkspace.infrastructure.CatalogWorker;
 import org.cda.archi.githubworkspace.models.AuthenticationStatus;
 import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.models.GitHubOrganization;
@@ -39,11 +38,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 /** MVC controller for repository discovery, plan checkouts and native model opening. */
 public final class GitHubWorkspaceController extends AbstractHandler implements RepositoryBrowserView.Listener {
     private final AtomicBoolean busy = new AtomicBoolean();
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(task -> {
-        Thread thread = new Thread(task, "GitHub Workspace worker");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final CatalogWorker worker = new CatalogWorker("GitHub Workspace worker");
     private final Set<Long> thumbnailRequests = ConcurrentHashMap.newKeySet();
     private final GitService git;
     private final GitHubRepositoryService github;
@@ -56,6 +51,8 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     private volatile GitHubSession session;
     private volatile CancellationToken cancellation;
     private volatile Future<?> activeTask;
+    private volatile AtomicBoolean activeTaskStarted = new AtomicBoolean();
+    private volatile long generation;
 
     public GitHubWorkspaceController() {
         RestClient client = new RestClient();
@@ -71,7 +68,12 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public Object execute(ExecutionEvent event) throws ExecutionException {
+        if (view != null && view.getShell() != null && !view.getShell().isDisposed()) {
+            view.getShell().forceActive();
+            return null;
+        }
         Shell shell = HandlerUtil.getActiveShell(event);
+        generation++;
         display = shell.getDisplay();
         view = new RepositoryBrowserView(shell);
         view.setListener(this);
@@ -83,14 +85,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     }
 
     private void initialize() {
-        worker.submit(() -> {
-            GitConfiguration configuration = git.inspect(new CancellationToken());
-            gitConfiguration = configuration;
-            ui(() -> view.showGitStatus(configuration));
-            if (new WorkspaceService(preferences).hasLegacyGovernanceWorkspace()) {
-                ui(() -> view.showProgress("Legacy Governance workspace detected. It will remain untouched."));
-            }
-        });
+        connect();
     }
 
     @Override
@@ -121,6 +116,11 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     }
 
     @Override
+    public void retryConnection() {
+        connect();
+    }
+
+    @Override
     public void refresh() {
         GitHubSession current = session;
         if (current == null) {
@@ -136,8 +136,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             } catch (GitHubApiException ex) {
                 if (ex.getStatusCode() == 401) {
                     closeSession();
-                    ui(() -> view.setAuthenticationStatus(new AuthenticationStatus(
-                            AuthenticationStatus.State.FAILED, ex.getMessage(), null)));
+                    ui(generation, () -> view.showAuthenticationFailure(ex.getMessage()));
                 }
                 throw ex;
             }
@@ -149,30 +148,40 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
         CancellationToken current = cancellation;
         Future<?> task = activeTask;
         if (current != null) current.cancel();
-        if (task != null) task.cancel(true);
+        if (task != null) {
+            task.cancel(true);
+            if (!activeTaskStarted.get()) {
+                ui(generation, () -> {
+                    view.showCancelled();
+                    finishOperation(current);
+                });
+            }
+        }
     }
 
     @Override
     public void cloneRepository(GitHubRepository repository, String planId) {
+        long taskGeneration = generation;
         startPlanOperation("Preparing " + planId + "...", token -> {
             Path model = repositories.preparePlan(repository, planId, token,
-                    message -> ui(() -> view.showProgress(message)));
+                    message -> ui(taskGeneration, () -> view.showProgress(message)));
             token.throwIfCancelled();
-            openModelOnUi(model, token);
+            openModelOnUi(model, token, taskGeneration);
         });
     }
 
     @Override
     public void openModel(GitHubRepository repository, String planId) {
+        long taskGeneration = generation;
         startPlanOperation("Validating local plan " + planId + "...", token -> {
             Path model = repositories.existingPlanModel(repository, planId, token);
             token.throwIfCancelled();
-            openModelOnUi(model, token);
+            openModelOnUi(model, token, taskGeneration);
         });
     }
 
-    private void openModelOnUi(Path model, CancellationToken token) {
-        ui(() -> {
+    private void openModelOnUi(Path model, CancellationToken token, long taskGeneration) {
+        ui(taskGeneration, () -> {
             if (token.isCancelled()) {
                 finishOperation(token);
                 return;
@@ -191,25 +200,27 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void viewOnGithub(GitHubRepository repository) {
-        worker.submit(() -> {
+        long taskGeneration = generation;
+        submitWorker(() -> {
             try {
                 repositories.openInBrowser(repository);
             } catch (IOException ex) {
-                ui(() -> view.showError(ex.getMessage()));
+                ui(taskGeneration, () -> view.showError(ex.getMessage()));
             }
         });
     }
 
     @Override
     public void requestLocalPlans(GitHubRepository repository) {
-        worker.submit(() -> {
+        long taskGeneration = generation;
+        submitWorker(() -> {
             try {
                 List<String> plans = repositories.localPlans(repository, new CancellationToken());
-                ui(() -> view.showLocalPlans(repository, plans));
+                ui(taskGeneration, () -> view.showLocalPlans(repository, plans));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             } catch (IOException ex) {
-                ui(() -> view.showError(ex.getMessage()));
+                ui(taskGeneration, () -> view.showError(ex.getMessage()));
             }
         });
     }
@@ -218,35 +229,51 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     public void requestThumbnail(GitHubRepository repository) {
         GitHubSession current = session;
         if (current == null || !thumbnailRequests.add(repository.getId())) return;
-        worker.submit(() -> {
+        long taskGeneration = generation;
+        submitWorker(() -> {
             byte[] bytes = new byte[0];
             try {
                 bytes = repositories.loadThumbnail(current, repository, new CancellationToken());
                 byte[] result = bytes;
-                ui(() -> view.showThumbnail(repository, result));
+                ui(taskGeneration, () -> view.showThumbnail(repository, result));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 java.util.Arrays.fill(bytes, (byte) 0);
             } catch (Exception ex) {
                 java.util.Arrays.fill(bytes, (byte) 0);
-                ui(() -> view.showThumbnail(repository, new byte[0]));
+                ui(taskGeneration, () -> view.showThumbnail(repository, new byte[0]));
             }
         });
     }
 
     @Override
     public void closed() {
-        cancel();
+        RepositoryBrowserView closingView = view;
+        generation++;
+        CancellationToken current = cancellation;
+        Future<?> task = activeTask;
+        if (current != null) current.cancel();
+        if (task != null) task.cancel(true);
         closeSession();
+        thumbnailRequests.clear();
+        busy.set(false);
+        cancellation = null;
+        activeTask = null;
+        activeTaskStarted = new AtomicBoolean();
         worker.shutdownNow();
+        if (view == closingView) {
+            view = null;
+            display = null;
+        }
     }
 
     private void searchRepositories(GitHubSession authenticated, String organization, String topic,
             CancellationToken token) throws IOException, InterruptedException {
+        long taskGeneration = generation;
         thumbnailRequests.clear();
         RepositorySearchResult result = repositories.search(authenticated, organization, topic, token);
         token.throwIfCancelled();
-        ui(() -> {
+        ui(taskGeneration, () -> {
             view.showRepositories(result);
             view.setAuthenticationStatus(new AuthenticationStatus(
                     AuthenticationStatus.State.AUTHENTICATED, "Authenticated with GitHub.",
@@ -262,24 +289,28 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     private void startPlanOperation(String message, Operation operation) {
         if (!busy.compareAndSet(false, true)) return;
         CancellationToken token = new CancellationToken();
+        long taskGeneration = generation;
+        AtomicBoolean started = new AtomicBoolean();
+        activeTaskStarted = started;
         cancellation = token;
-        ui(() -> view.setBusy(true, message));
-        activeTask = worker.submit(() -> {
+        ui(taskGeneration, () -> view.setBusy(true, message));
+        activeTask = submitWorker(() -> {
+            started.set(true);
             try {
                 operation.run(token);
             } catch (CancellationException ex) {
-                ui(() -> {
+                ui(taskGeneration, () -> {
                     view.showCancelled();
                     finishOperation(token);
                 });
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                ui(() -> {
+                ui(taskGeneration, () -> {
                     view.showCancelled();
                     finishOperation(token);
                 });
             } catch (Exception ex) {
-                ui(() -> {
+                ui(taskGeneration, () -> {
                     view.showError(userFacingError(ex));
                     finishOperation(token);
                 });
@@ -290,51 +321,70 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     private void submit(String message, Operation operation) {
         if (!busy.compareAndSet(false, true)) return;
         CancellationToken token = new CancellationToken();
+        long taskGeneration = generation;
+        AtomicBoolean started = new AtomicBoolean();
+        activeTaskStarted = started;
         cancellation = token;
-        ui(() -> view.setBusy(true, message));
-        activeTask = worker.submit(() -> {
+        ui(taskGeneration, () -> view.setBusy(true, message));
+        activeTask = submitWorker(() -> {
+            started.set(true);
             try {
                 operation.run(token);
             } catch (CancellationException ex) {
-                ui(view::showCancelled);
+                ui(taskGeneration, view::showCancelled);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                ui(view::showCancelled);
+                ui(taskGeneration, view::showCancelled);
             } catch (Exception ex) {
-                String errorMessage = ex.getMessage() == null ? "The operation failed." : ex.getMessage();
-                ui(() -> {
+                String errorMessage = userFacingError(ex);
+                ui(taskGeneration, () -> {
                     if (session == null) {
-                        view.setAuthenticationStatus(new AuthenticationStatus(
-                                AuthenticationStatus.State.FAILED, errorMessage, null));
+                        view.showAuthenticationFailure(errorMessage);
+                    } else {
+                        view.showError(errorMessage);
                     }
-                    view.showError(errorMessage);
                 });
             } finally {
-                busy.set(false);
-                if (cancellation == token) cancellation = null;
-                activeTask = null;
-                ui(() -> view.setBusy(false, ""));
+                if (generation == taskGeneration) {
+                    busy.set(false);
+                    if (cancellation == token) cancellation = null;
+                    activeTask = null;
+                    activeTaskStarted = new AtomicBoolean();
+                    ui(taskGeneration, () -> view.setBusy(false, ""));
+                }
             }
         });
     }
 
     private void finishOperation(CancellationToken token) {
+        if (token == null || cancellation != token) return;
         busy.set(false);
-        if (cancellation == token) cancellation = null;
+        cancellation = null;
         activeTask = null;
+        activeTaskStarted = new AtomicBoolean();
         if (view != null && !view.getShell().isDisposed()) view.setBusy(false, "");
     }
 
     private void ui(Runnable update) {
+        ui(generation, update);
+    }
+
+    private void ui(long expectedGeneration, Runnable update) {
         Display current = display;
+        RepositoryBrowserView expectedView = view;
         if (current == null || current.isDisposed()) return;
         try {
             current.asyncExec(() -> {
-                if (view != null && !view.getShell().isDisposed()) update.run();
+                if (generation == expectedGeneration && view == expectedView
+                        && expectedView != null && !expectedView.getShell().isDisposed()) update.run();
             });
         } catch (SWTException ignored) {
             // The Archi workbench can dispose its Display while background work completes.
         }
+    }
+
+    private Future<?> submitWorker(Runnable task) {
+        return worker.submit(task);
     }
 
     private void closeSession() {

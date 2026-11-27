@@ -9,6 +9,10 @@ import java.util.zip.ZipFile;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import org.eclipse.ui.IWorkbenchActionConstants;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
 /** Verifies the generated OSGi bundle and official Archi installer layout. */
 public final class ArtifactValidationTests {
     public static void main(String[] args) throws Exception {
@@ -45,20 +49,42 @@ public final class ArtifactValidationTests {
                     "org/cda/archi/githubworkspace/services/PreferencesService.class",
                     "org/cda/archi/githubworkspace/services/ArchiModelService.class",
                     "org/cda/archi/githubworkspace/infrastructure/ProcessExecutor.class",
+                    "org/cda/archi/githubworkspace/infrastructure/CatalogWorker.class",
                     "org/cda/archi/githubworkspace/infrastructure/GitCredentialAdapter.class",
                     "plugin.xml" }) {
                 require(jar.getEntry(entry) != null, "Bundle contains " + entry);
             }
             String xml = new String(jar.getInputStream(jar.getEntry("plugin.xml")).readAllBytes(),
                     StandardCharsets.UTF_8);
-            DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            var document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
                     .parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
             require(xml.contains("org.eclipse.ui.commands") && xml.contains("org.eclipse.ui.handlers")
                     && xml.contains("org.eclipse.ui.menus") && xml.contains("org.eclipse.ui.preferencePages"),
                     "Archi/Eclipse extension points are valid");
-            require(xml.contains("GitHubWorkspaceController") && xml.contains("Browse Repositories...")
-                    && xml.contains("menu:org.eclipse.ui.main.menu/file?after=com.archimatetool.editor.action.openModel"),
-                    "File menu command points to the native repository browser");
+
+            // Archi 5.11.0's ArchiActionBarAdvisor#createFileMenu() creates M_FILE
+            // and terminates it with FILE_END; anchor this contribution to that real group.
+            String fileMenuLocation = "menu:" + IWorkbenchActionConstants.M_FILE
+                    + "?before=" + IWorkbenchActionConstants.FILE_END;
+            require("menu:file?before=fileEnd".equals(fileMenuLocation),
+                    "Archi File menu and FILE_END constants match the 5.11.0 source contract");
+            Element contribution = findMenuContribution(document, fileMenuLocation);
+            require(contribution != null, "Repository menu is inserted before Archi's File-end marker");
+
+            Element submenu = findById(contribution.getElementsByTagName("menu"),
+                    "org.cda.archi.githubworkspace.menu");
+            require(submenu != null && "GitHub Workspace".equals(submenu.getAttribute("label")),
+                    "GitHub Workspace submenu ID and label are preserved");
+            Element browseCommand = findById(submenu.getElementsByTagName("command"),
+                    "org.cda.archi.githubworkspace.browseRepositories.menu");
+            require(browseCommand != null
+                    && "org.cda.archi.githubworkspace.browseRepositories".equals(
+                            browseCommand.getAttribute("commandId"))
+                    && "Browse Repositories...".equals(browseCommand.getAttribute("label")),
+                    "Browse Repositories command IDs and label are preserved");
+            require(xml.contains("class=\"org.cda.archi.githubworkspace.controllers.GitHubWorkspaceController\"")
+                    && xml.contains("commandId=\"org.cda.archi.githubworkspace.browseRepositories\""),
+                    "Existing repository browser handler is preserved");
             require(!xml.contains("Governance"), "Independent Governance menu is absent");
         }
 
@@ -71,5 +97,22 @@ public final class ArtifactValidationTests {
 
     private static void require(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static Element findMenuContribution(org.w3c.dom.Document document, String location) {
+        NodeList contributions = document.getElementsByTagName("menuContribution");
+        for (int index = 0; index < contributions.getLength(); index++) {
+            Element candidate = (Element) contributions.item(index);
+            if (location.equals(candidate.getAttribute("locationURI"))) return candidate;
+        }
+        return null;
+    }
+
+    private static Element findById(NodeList elements, String id) {
+        for (int index = 0; index < elements.getLength(); index++) {
+            Element candidate = (Element) elements.item(index);
+            if (id.equals(candidate.getAttribute("id"))) return candidate;
+        }
+        return null;
     }
 }

@@ -34,7 +34,8 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         super(parent);
         this.repository = repository;
         this.listener = listener;
-        setShellStyle(getShellStyle() | SWT.RESIZE);
+        setShellStyle(SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
+        setBlockOnOpen(true);
     }
 
     @Override
