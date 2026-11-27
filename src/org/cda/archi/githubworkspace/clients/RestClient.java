@@ -33,7 +33,6 @@ public final class RestClient implements GitHubApiClient {
     public RestResponse get(URI uri, String bearerToken, CancellationToken cancellation)
             throws IOException, InterruptedException {
         validateApiUri(uri);
-        cancellation.throwIfCancelled();
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(REQUEST_TIMEOUT)
                 .header("Authorization", "Bearer " + bearerToken)
@@ -41,6 +40,27 @@ public final class RestClient implements GitHubApiClient {
                 .header("X-GitHub-Api-Version", "2022-11-28")
                 .GET()
                 .build();
+        return send(request, cancellation);
+    }
+
+    @Override
+    public RestResponse post(URI uri, String bearerToken, String jsonBody, CancellationToken cancellation)
+            throws IOException, InterruptedException {
+        validateApiUri(uri);
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(REQUEST_TIMEOUT)
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/vnd.github+json")
+                .header("Content-Type", "application/json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+        return send(request, cancellation);
+    }
+
+    private RestResponse send(HttpRequest request, CancellationToken cancellation)
+            throws IOException, InterruptedException {
+        cancellation.throwIfCancelled();
         CompletableFuture<HttpResponse<String>> future =
                 httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
         long deadline = System.nanoTime() + REQUEST_TIMEOUT.toNanos();

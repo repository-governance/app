@@ -1,0 +1,187 @@
+package org.cda.archi.githubworkspace.services;
+
+import java.net.URI;
+import java.net.http.HttpHeaders;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+
+import org.cda.archi.githubworkspace.clients.GitHubApiClient;
+import org.cda.archi.githubworkspace.clients.RestResponse;
+import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
+import org.cda.archi.githubworkspace.models.GitHubRepository;
+import org.cda.archi.githubworkspace.models.GitHubUser;
+
+/** API-contract regressions for organization repository creation from a template folder. */
+public final class RepositoryManagementServiceTests {
+    private RepositoryManagementServiceTests() { }
+
+    public static int run() throws Exception {
+        testOrganizationRepositoryListing();
+        testTemplateFolderListingAndCopy();
+        testUnsafeTemplateFilesAreRejectedBeforeRemoteCreation();
+        testTemplateRepositoryValidation();
+        return 11;
+    }
+
+    private static void testOrganizationRepositoryListing() throws Exception {
+        GitHubSession session = session();
+        try {
+            List<GitHubRepository> repositories = new RepositoryManagementService(new RecordingApi())
+                    .listOrganizationRepositories(session, "target-org", new CancellationToken());
+            require(repositories.size() == 1 && repositories.get(0).getName().equals("existing"),
+                    "Management lists repositories from the organization independently of topic search");
+        } finally {
+            session.close();
+        }
+    }
+
+    private static void testTemplateFolderListingAndCopy() throws Exception {
+        RecordingApi api = new RecordingApi();
+        RepositoryManagementService service = new RepositoryManagementService(api);
+        GitHubSession session = session();
+        try {
+            var folders = service.listTemplateFolders(session, "https://github.com/source/templates",
+                    new CancellationToken());
+            require(folders.size() == 2 && folders.get(0).name().equals("Architecture")
+                    && folders.get(1).name().equals("Governance"),
+                    "All root-level template folders are listed alphabetically");
+
+            List<String> progress = new ArrayList<>();
+            GitHubRepository created = service.createFromTemplateFolder(session, "target-org",
+                    "source/templates", "Architecture", "SBB-010001", "Created from a model template",
+                    false, new CancellationToken(), progress::add);
+            require(created.getFullName().equals("target-org/SBB-010001"),
+                    "The new repository is created inside the configured organization");
+            require(api.postRequests.size() == 5, "Creation posts repository, blob, tree, commit and initial ref");
+            require(api.postRequests.get(0).body().contains("\"private\":false")
+                    && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001\""),
+                    "The repository name and selected visibility are sent to GitHub");
+            require(api.postRequests.get(2).body().contains("\"path\":\"source/design.archimate\""),
+                    "Only the chosen root folder's content is added at the new repository root");
+            require(api.postRequests.get(4).body().contains("\"ref\":\"refs/heads/master\""),
+                    "The initial branch name follows the template repository default branch");
+            require(progress.stream().anyMatch(item -> item.contains("Publishing")),
+                    "The create flow reports progress through initial publication");
+        } finally {
+            session.close();
+        }
+    }
+
+    private static void testUnsafeTemplateFilesAreRejectedBeforeRemoteCreation() throws Exception {
+        RecordingApi api = new RecordingApi();
+        api.unsafeSymlink = true;
+        RepositoryManagementService service = new RepositoryManagementService(api);
+        GitHubSession session = session();
+        try {
+            try {
+                service.createFromTemplateFolder(session, "target-org", "source/templates",
+                        "Architecture", "SBB-010002", "", true, new CancellationToken(), ignored -> { });
+                throw new AssertionError("Template symlinks must be rejected.");
+            } catch (java.io.IOException expected) {
+                require(api.postRequests.isEmpty(), "Unsafe template entries are rejected before creating a repo");
+            }
+        } finally {
+            session.close();
+        }
+    }
+
+    private static void testTemplateRepositoryValidation() throws Exception {
+        require(RepositoryManagementService.normalizeTemplateRepository(
+                "https://github.com/source/templates.git/").equals("source/templates"),
+                "A GitHub URL is normalized to owner/repository");
+        try {
+            RepositoryManagementService.normalizeTemplateRepository("https://evil.example/source/templates");
+            throw new AssertionError("Non-GitHub template URLs must be rejected.");
+        } catch (java.io.IOException expected) {
+            // Expected: authorization and source reads are restricted to GitHub.
+        }
+    }
+
+    private static GitHubSession session() {
+        return new GitHubSession(new GitHubUser(123, "test-user", "Test User",
+                "https://github.com/test-user"), "test-token".toCharArray());
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) throw new AssertionError(message);
+    }
+
+    private static RestResponse response(int status, String body) {
+        return new RestResponse(status, body, HttpHeaders.of(Map.of(), (name, value) -> true));
+    }
+
+    private record Posted(URI uri, String body) { }
+
+    private static final class RecordingApi implements GitHubApiClient {
+        private final List<Posted> postRequests = new ArrayList<>();
+        private boolean unsafeSymlink;
+
+        @Override
+        public RestResponse get(URI uri, String token, CancellationToken cancellation) {
+            cancellation.throwIfCancelled();
+            String path = uri.getPath();
+            if (path.equals("/repos/source/templates")) {
+                return response(200, "{\"full_name\":\"source/templates\",\"default_branch\":\"master\"}");
+            }
+            if (path.equals("/orgs/target-org/repos")) {
+                return response(200, "[" + repositoryJson("target-org/existing") + "]");
+            }
+            if (path.equals("/repos/source/templates/contents")) {
+                return response(200, """
+                        [
+                          {"name":"Governance","type":"dir","sha":"tree-governance"},
+                          {"name":"README.md","type":"file","sha":"blob-readme"},
+                          {"name":"Architecture","type":"dir","sha":"tree-architecture"}
+                        ]
+                        """);
+            }
+            if (path.equals("/repos/source/templates/git/trees/tree-architecture")) {
+                String mode = unsafeSymlink ? "120000" : "100644";
+                return response(200, "{\"truncated\":false,\"tree\":["
+                        + "{\"path\":\"source\",\"mode\":\"040000\",\"type\":\"tree\",\"sha\":\"source-tree\"},"
+                        + "{\"path\":\"source/design.archimate\",\"mode\":\"" + mode
+                        + "\",\"type\":\"blob\",\"sha\":\"template-blob\"}]}");
+            }
+            if (path.equals("/repos/source/templates/git/blobs/template-blob")) {
+                String content = Base64.getEncoder().encodeToString(
+                        "template model".getBytes(StandardCharsets.UTF_8));
+                return response(200, "{\"encoding\":\"base64\",\"content\":\"" + content + "\"}");
+            }
+            throw new AssertionError("Unexpected API GET " + uri);
+        }
+
+        @Override
+        public RestResponse post(URI uri, String token, String body, CancellationToken cancellation) {
+            cancellation.throwIfCancelled();
+            postRequests.add(new Posted(uri, body));
+            String path = uri.getPath();
+            if (path.equals("/orgs/target-org/repos")) {
+                return response(201, repositoryJson("target-org/SBB-010001"));
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/blobs")) {
+                return response(201, "{\"sha\":\"target-blob\"}");
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/trees")) {
+                return response(201, "{\"sha\":\"target-tree\"}");
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/commits")) {
+                return response(201, "{\"sha\":\"target-commit\"}");
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/refs")) return response(201, "{}");
+            throw new AssertionError("Unexpected API POST " + uri);
+        }
+
+        private static String repositoryJson(String fullName) {
+            String name = fullName.substring(fullName.indexOf('/') + 1);
+            return "{\"id\":1,\"name\":\"" + name + "\",\"full_name\":\"" + fullName
+                    + "\",\"html_url\":\"https://github.com/" + fullName
+                    + "\",\"private\":false,\"visibility\":\"public\",\"description\":\"\","
+                    + "\"topics\":[],\"clone_url\":\"https://github.com/" + fullName
+                    + ".git\",\"ssh_url\":\"git@github.com:" + fullName + ".git\","
+                    + "\"default_branch\":\"master\"}";
+        }
+    }
+}

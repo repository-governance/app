@@ -36,16 +36,21 @@ public final class ArtifactValidationTests {
                     "Native Archi model APIs are declared as bundle dependencies");
             for (String entry : new String[] {
                     "org/cda/archi/githubworkspace/controllers/GitHubWorkspaceController.class",
+                    "org/cda/archi/githubworkspace/controllers/RepositoryManagementController.class",
                     "org/cda/archi/githubworkspace/controllers/AuthenticationController.class",
                     "org/cda/archi/githubworkspace/controllers/RepositoryController.class",
                     "org/cda/archi/githubworkspace/views/RepositoryBrowserView.class",
                     "org/cda/archi/githubworkspace/views/CloneRepositoryDialog.class",
+                    "org/cda/archi/githubworkspace/views/RepositoryManagementView.class",
+                    "org/cda/archi/githubworkspace/views/CreateRepositoryDialog.class",
                     "org/cda/archi/githubworkspace/views/GitHubWorkspacePreferencePage.class",
                     "org/cda/archi/githubworkspace/services/GitService.class",
                     "org/cda/archi/githubworkspace/services/GitCredentialService.class",
                     "org/cda/archi/githubworkspace/services/GitHubAuthenticationService.class",
                     "org/cda/archi/githubworkspace/services/GitHubRepositoryService.class",
+                    "org/cda/archi/githubworkspace/services/RepositoryManagementService.class",
                     "org/cda/archi/githubworkspace/services/WorkspaceService.class",
+                    "org/cda/archi/githubworkspace/models/RepositoryTemplateFolder.class",
                     "org/cda/archi/githubworkspace/services/PreferencesService.class",
                     "org/cda/archi/githubworkspace/services/ArchiModelService.class",
                     "org/cda/archi/githubworkspace/infrastructure/ProcessExecutor.class",
@@ -86,6 +91,19 @@ public final class ArtifactValidationTests {
                     && "Browse Repositories...".equals(browseCommand.getAttribute("label"))
                     && "icons/catalogs.png".equals(browseCommand.getAttribute("icon")),
                     "Browse Repositories command IDs, label and icon are preserved");
+            Element managementCommand = findById(submenu.getElementsByTagName("command"),
+                    "org.cda.archi.githubworkspace.managementRepositories.menu");
+            require(managementCommand != null
+                    && "org.cda.archi.githubworkspace.managementRepositories".equals(
+                            managementCommand.getAttribute("commandId"))
+                    && "Management Repositories".equals(managementCommand.getAttribute("label")),
+                    "Management Repositories command is contributed to the GitHub Workspace submenu");
+            NodeList menuCommands = submenu.getElementsByTagName("command");
+            int browseIndex = indexOfId(menuCommands, "org.cda.archi.githubworkspace.browseRepositories.menu");
+            int managementIndex = indexOfId(menuCommands,
+                    "org.cda.archi.githubworkspace.managementRepositories.menu");
+            require(browseIndex >= 0 && managementIndex > browseIndex,
+                    "Management Repositories follows Browse Repositories in the submenu");
             require(xml.contains("class=\"org.cda.archi.githubworkspace.controllers.GitHubWorkspaceController\"")
                     && xml.contains("commandId=\"org.cda.archi.githubworkspace.browseRepositories\""),
                     "Existing repository browser handler is preserved");
@@ -118,5 +136,12 @@ public final class ArtifactValidationTests {
             if (id.equals(candidate.getAttribute("id"))) return candidate;
         }
         return null;
+    }
+
+    private static int indexOfId(NodeList elements, String id) {
+        for (int index = 0; index < elements.getLength(); index++) {
+            if (id.equals(((Element) elements.item(index)).getAttribute("id"))) return index;
+        }
+        return -1;
     }
 }

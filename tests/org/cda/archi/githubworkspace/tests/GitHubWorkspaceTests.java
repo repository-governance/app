@@ -64,6 +64,7 @@ public final class GitHubWorkspaceTests {
         testThumbnailSelectionAndCache();
         assertions += CatalogRegressionTests.run();
         assertions += org.cda.archi.githubworkspace.views.CloneRepositoryDialogTests.run();
+        assertions += org.cda.archi.githubworkspace.services.RepositoryManagementServiceTests.run();
         testJsonValidation();
         System.out.println("PASS: " + assertions + " GitHub Workspace assertions");
     }
@@ -143,10 +144,15 @@ public final class GitHubWorkspaceTests {
             PreferencesService preferences = new PreferencesService(node);
             equal("repository-governance", preferences.getOrganization(), "Reference organization is default");
             equal("archimate", preferences.getTopic(), "Reference repository topic is default");
+            equal("https://github.com/repository-governance/templates", preferences.getTemplateRepository(),
+                    "The configured repository of root-level templates has a default");
             check(preferences.useDefaultWorkspace(), "Default workspace is enabled initially");
             preferences.saveSearch("example-org", "architecture");
+            preferences.saveTemplateRepository("https://github.com/example-org/templates");
             equal("example-org", preferences.getOrganization(), "Organization preference persists");
             equal("architecture", preferences.getTopic(), "Topic preference persists");
+            equal("https://github.com/example-org/templates", preferences.getTemplateRepository(),
+                    "Template repository preference persists");
 
             Path custom = home.resolve("custom-workspace");
             preferences.saveWorkspace(false, custom.toString());
@@ -163,6 +169,8 @@ public final class GitHubWorkspaceTests {
             check(preferences.useDefaultWorkspace(), "Restore Defaults returns to default workspace");
             equal("repository-governance", preferences.getOrganization(), "Restore Defaults resets organization");
             equal("archimate", preferences.getTopic(), "Restore Defaults resets topic");
+            equal("https://github.com/repository-governance/templates", preferences.getTemplateRepository(),
+                    "Restore Defaults resets the template repository");
             equal("", preferences.getLastAccount(),
                     "Authentication identity is not populated by discovery preferences");
         } finally {

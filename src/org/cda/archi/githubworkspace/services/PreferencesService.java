@@ -11,11 +11,13 @@ public final class PreferencesService {
     private static final String NODE = "org.cda.archi.githubworkspace";
     private static final String ORGANIZATION = "github.organization";
     private static final String TOPIC = "github.repositoryTopic";
+    private static final String TEMPLATE_REPOSITORY = "github.templateRepository";
     private static final String DEFAULT_WORKSPACE = "workspace.useDefault";
     private static final String CUSTOM_WORKSPACE = "workspace.location";
     private static final String LAST_ACCOUNT = "authentication.lastAccount";
     public static final String DEFAULT_ORGANIZATION = "repository-governance";
     public static final String DEFAULT_TOPIC = "archimate";
+    public static final String DEFAULT_TEMPLATE_REPOSITORY = "https://github.com/repository-governance/templates";
 
     private final IEclipsePreferences preferences;
 
@@ -29,6 +31,9 @@ public final class PreferencesService {
 
     public String getOrganization() { return preferences.get(ORGANIZATION, DEFAULT_ORGANIZATION); }
     public String getTopic() { return preferences.get(TOPIC, DEFAULT_TOPIC); }
+    public String getTemplateRepository() {
+        return preferences.get(TEMPLATE_REPOSITORY, DEFAULT_TEMPLATE_REPOSITORY);
+    }
     public boolean useDefaultWorkspace() { return preferences.getBoolean(DEFAULT_WORKSPACE, true); }
     public String getCustomWorkspaceLocation() { return preferences.get(CUSTOM_WORKSPACE, ""); }
     public String getLastAccount() { return preferences.get(LAST_ACCOUNT, ""); }
@@ -50,6 +55,11 @@ public final class PreferencesService {
     public void saveSearch(String organization, String topic) throws org.osgi.service.prefs.BackingStoreException {
         preferences.put(ORGANIZATION, organization);
         preferences.put(TOPIC, topic);
+        preferences.flush();
+    }
+
+    public void saveTemplateRepository(String repository) throws org.osgi.service.prefs.BackingStoreException {
+        preferences.put(TEMPLATE_REPOSITORY, repository == null ? "" : repository.trim());
         preferences.flush();
     }
 
@@ -106,6 +116,7 @@ public final class PreferencesService {
     public void restoreDefaults() throws org.osgi.service.prefs.BackingStoreException {
         preferences.put(ORGANIZATION, DEFAULT_ORGANIZATION);
         preferences.put(TOPIC, DEFAULT_TOPIC);
+        preferences.put(TEMPLATE_REPOSITORY, DEFAULT_TEMPLATE_REPOSITORY);
         preferences.putBoolean(DEFAULT_WORKSPACE, true);
         preferences.put(CUSTOM_WORKSPACE, "");
         preferences.flush();

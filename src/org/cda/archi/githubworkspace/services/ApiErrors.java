@@ -20,8 +20,8 @@ final class ApiErrors {
             case 403, 429 -> rateLimitMessage(response);
             case 404 -> authenticationRequest
                     ? "GitHub could not resolve the authenticated user."
-                    : "The organization is unavailable to this account, or does not exist.";
-            case 422 -> "GitHub rejected the organization/topic search query (HTTP 422).";
+                    : "The GitHub resource is unavailable to this account, or does not exist.";
+            case 422 -> "GitHub rejected the request (HTTP 422). Check that the supplied name and data are valid.";
             default -> status >= 500
                     ? "GitHub is temporarily unavailable (HTTP " + status + ")."
                     : "GitHub API request failed (HTTP " + status + ").";

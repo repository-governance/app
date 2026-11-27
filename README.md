@@ -1,6 +1,6 @@
 # GitHub Workspace for Archi
 
-GitHub Workspace is a native SWT/JFace plug-in for Archi **5.11.0**. It reuses the existing Governance authentication, GitHub REST, MVC, asynchronous process, and native model-opening services. Its first release resets the product version to **0.1.0** and adds repository browsing, thumbnails, configurable preferences, and independent local plan branches.
+GitHub Workspace is a native SWT/JFace plug-in for Archi **5.11.0**. It reuses the existing Governance authentication, GitHub REST, MVC, asynchronous process, and native model-opening services. Its first release resets the product version to **0.1.0** and adds repository browsing and management, template-based repository creation, thumbnails, configurable preferences, and independent local branches.
 
 ## Compatibility and build
 
@@ -34,6 +34,8 @@ Open **Preferences → GitHub Workspace**. Settings use the native Archi/Eclipse
 
 - **Organization**: defaults to `repository-governance`.
 - **Repository Topic**: defaults to `archimate`.
+- **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
+- **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
 
 The catalog searches GitHub using `org:{organization} topic:{topic}` and does not expose these settings as editable catalog fields.
 
@@ -52,6 +54,22 @@ On Windows this is `%USERPROFILE%\.github-workspace\workspace\`. Clear **Use def
 Git installation/version, credential-helper configuration, and the last authenticated GitHub account are read-only status. Authentication uses the existing `git credential fill` flow. No token is requested by the UI or stored in preferences.
 
 The preference page uses Archi's native **Apply**, **Apply and Close**, **Cancel**, and **Restore Defaults** actions.
+
+## Manage organization repositories
+
+Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
+
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit. The initial branch uses the template repository's default branch name.
+
+Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
+
+## Manage organization repositories
+
+Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
+
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit. The initial branch uses the template repository's default branch name.
+
+Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 
 ## Browse repositories
 
@@ -116,8 +134,8 @@ Historical Governance artifacts in `dist/` are retained and are not overwritten 
 
 Automated tests cannot prove native UI behavior. In Archi 5.11.0, verify:
 
-1. Uninstall Governance, install the GitHub Workspace `.archiplugin`, restart, and confirm the menu is **File → GitHub Workspace → Browse Repositories...** with no separate Governance menu.
-2. Open Preferences, verify the default organization/topic/workspace, apply a custom writable location, restart Archi, and confirm the settings persist.
+1. Uninstall Governance, install the GitHub Workspace `.archiplugin`, restart, and confirm **File → GitHub Workspace** contains **Browse Repositories...** followed by **Management Repositories**.
+2. Open Preferences, verify the default organization/topic/template repository/workspace, apply a custom writable location, restart Archi, and confirm the settings persist.
 3. Connect through Git Credential Manager, confirm the account, and browse repositories with and without thumbnails.
 4. Clone a repository into a new branch name. Verify the final path, active branch, and that no new branch was pushed. Repeat with a branch of that name already present remotely and verify upstream tracking.
 5. Edit and save `source/design.archimate`; confirm `git status` sees the change.
@@ -125,5 +143,6 @@ Automated tests cannot prove native UI behavior. In Archi 5.11.0, verify:
 7. Open an already-open plan again; verify it activates the current model without reload or loss of unsaved changes.
 8. Change the workspace root and verify no checkout moved, disappeared, or changed, including any legacy `.governance/workspace/` directory.
 9. Cancel a clone and verify no final plan checkout was left published.
+10. With an organization where the authenticated account has repository-creation permission, open **Management Repositories**, confirm it lists repositories beyond the Browse topic, and create a test repository from a selected template folder; verify its files are at the repository root and visibility matches the selection.
 
-**Unverified here:** the new preference page, File menu rendering, thumbnail image presentation, and simultaneous native opening of two copied models must be exercised in Archi 5.11.0 before claiming functional acceptance. The pre-refactor 103-assertion suite is preserved and has a passing baseline; new automated checks supplement it but do not replace this manual checklist.
+**Unverified here:** the new preference page, File menu rendering, management screen and real GitHub repository creation, thumbnail image presentation, and simultaneous native opening of two copied models must be exercised in Archi 5.11.0 before claiming functional acceptance. The pre-refactor 103-assertion suite is preserved and has a passing baseline; new automated checks supplement it but do not replace this manual checklist.

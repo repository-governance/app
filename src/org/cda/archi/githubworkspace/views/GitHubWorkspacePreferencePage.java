@@ -26,6 +26,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
     private final PreferencesService preferences = new PreferencesService();
     private Text organization;
     private Text topic;
+    private Text templateRepository;
     private Button useDefault;
     private Text workspaceLocation;
     private Button browse;
@@ -50,6 +51,10 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         groupTitle(content, "Repository Discovery");
         organization = row(content, "Organization:", preferences.getOrganization());
         topic = row(content, "Repository Topic:", preferences.getTopic());
+
+        groupTitle(content, "Repository Templates");
+        templateRepository = row(content, "Template Repository URL:", preferences.getTemplateRepository());
+        templateRepository.setToolTipText("GitHub repository whose root folders provide repository templates.");
 
         groupTitle(content, "Local Workspace");
         useDefault = new Button(content, SWT.CHECK);
@@ -102,6 +107,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
     protected void performDefaults() {
         organization.setText(PreferencesService.DEFAULT_ORGANIZATION);
         topic.setText(PreferencesService.DEFAULT_TOPIC);
+        templateRepository.setText(PreferencesService.DEFAULT_TEMPLATE_REPOSITORY);
         useDefault.setSelection(true);
         workspaceLocation.setText(preferences.defaultWorkspace().toString());
         updateWorkspaceControls();
@@ -112,6 +118,8 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
     private boolean saveSettings() {
         try {
             validateDiscovery();
+            org.cda.archi.githubworkspace.services.RepositoryManagementService
+                    .normalizeTemplateRepository(templateRepository.getText());
             Path workspace;
             if (useDefault.getSelection()) {
                 workspace = preferences.defaultWorkspace();
@@ -121,6 +129,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
             }
             PreferencesService.validateWorkspaceLocation(workspace.toString());
             preferences.saveSearch(organization.getText().trim(), topic.getText().trim());
+            preferences.saveTemplateRepository(templateRepository.getText().trim());
             preferences.saveWorkspace(useDefault.getSelection(), workspaceLocation.getText().trim());
             setErrorMessage(null);
             return true;

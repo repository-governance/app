@@ -84,6 +84,18 @@ public final class CatalogRegressionTests {
                 "The catalog is centered after its initial size is applied");
         assertions += sourceContains(view, "shell.setLocation(parentBounds.x + (parentBounds.width - size.x) / 2,",
                 "The catalog window is centered relative to the parent shell bounds");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/controllers/RepositoryManagementController.java"),
+                "management.listOrganizationRepositories(",
+                "Management Repositories loads all repositories without the Browse topic filter");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "new Table(content, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE)",
+                "Management Repositories presents the organization list in a grid");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
+                "folder.setItems(folders.stream().map(RepositoryTemplateFolder::name)",
+                "Repository creation offers every root-level template folder");
         assertions += sourceContains(controller, "if (current != null) current.cancel();\n        if (task != null) task.cancel(true);",
                 "Closing the catalog cancels active work without leaving old callbacks live");
         assertions += sourceContains(controller, "worker.shutdownNow();",
@@ -107,6 +119,16 @@ public final class CatalogRegressionTests {
                 "Repository catalog uses a single card column");
         assertions += sourceContains(view, "new GridLayout(3, false)",
                 "Repository cards use a horizontal three-section layout");
+        assertions += sourceContains(view, "String placeholder = \"Preview unavailable\";",
+                "Missing thumbnails show a clear, neutral placeholder message");
+        if (view.contains("event.gc.drawLine(")) {
+            throw new AssertionError("The thumbnail placeholder must not contain hand-drawn scribbles.");
+        }
+        assertions++;
+        assertions += sourceContains(view, "shell.setImage(windowIcon);",
+                "The repository catalog window uses the GitHub icon");
+        assertions += sourceContains(view, "if (windowIcon != null && !windowIcon.isDisposed()) windowIcon.dispose();",
+                "The catalog window icon is disposed with its SWT resources");
 
         assertions += testWorkerCanBeReopened();
         assertions += testActiveWorkerTaskCanBeCancelled();

@@ -6,20 +6,30 @@
       <command id="org.cda.archi.githubworkspace.browseRepositories"
                name="Browse Repositories..."
                categoryId="org.cda.archi.githubworkspace.category"/>
+      <command id="org.cda.archi.githubworkspace.managementRepositories"
+               name="Management Repositories"
+               categoryId="org.cda.archi.githubworkspace.category"/>
    </extension>
    <extension point="org.eclipse.ui.handlers">
       <handler class="org.cda.archi.githubworkspace.controllers.GitHubWorkspaceController"
                commandId="org.cda.archi.githubworkspace.browseRepositories"/>
+      <handler class="org.cda.archi.githubworkspace.controllers.RepositoryManagementController"
+               commandId="org.cda.archi.githubworkspace.managementRepositories"/>
    </extension>
    <extension point="org.eclipse.ui.menus">
         <menuContribution locationURI="menu:file?after=fileStart">
           <menu id="org.cda.archi.githubworkspace.menu" label="GitHub Workspace"
                 icon="icons/github.png">
-             <command commandId="org.cda.archi.githubworkspace.browseRepositories"
-                      id="org.cda.archi.githubworkspace.browseRepositories.menu"
-                      label="Browse Repositories..."
-                      icon="icons/catalogs.png"
-                      style="push"/>
+              <command commandId="org.cda.archi.githubworkspace.browseRepositories"
+                       id="org.cda.archi.githubworkspace.browseRepositories.menu"
+                       label="Browse Repositories..."
+                       icon="icons/catalogs.png"
+                       style="push"/>
+              <command commandId="org.cda.archi.githubworkspace.managementRepositories"
+                       id="org.cda.archi.githubworkspace.managementRepositories.menu"
+                       label="Management Repositories"
+                       icon="icons/catalogs.png"
+                       style="push"/>
          </menu>
       </menuContribution>
    </extension>

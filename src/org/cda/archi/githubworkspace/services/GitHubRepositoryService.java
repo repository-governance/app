@@ -227,7 +227,7 @@ public final class GitHubRepositoryService {
         return topic;
     }
 
-    private static GitHubRepository parseRepository(Map<String, Object> item) {
+    static GitHubRepository parseRepository(Map<String, Object> item) {
         long id = JsonObjects.integer(item, "id", -1);
         String name = JsonObjects.string(item, "name");
         String fullName = JsonObjects.string(item, "full_name");

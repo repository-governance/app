@@ -161,7 +161,8 @@ public final class WorkspaceService {
         if (name == null || name.isBlank() || name.equals(".") || name.equals("..")
                 || name.endsWith(".") || name.matches("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?")
                 || !name.matches("[A-Za-z0-9_.-]{1,100}")) {
-            throw new IllegalArgumentException("The GitHub repository name cannot be used as a local directory.");
+            throw new IllegalArgumentException(
+                    "Enter a valid repository name using letters, numbers, dots, underscores, or hyphens.");
         }
     }
 

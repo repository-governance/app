@@ -1,6 +1,8 @@
 package org.cda.archi.githubworkspace.views;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +67,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     private boolean busy;
     private boolean authenticated;
     private String connectedLogin = "";
+    private Image windowIcon;
 
     public RepositoryBrowserView(Shell parentShell) {
         super(parentShell);
@@ -89,6 +92,14 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
         shell.setText("Browse Repositories - GitHub Workspace");
+        try (InputStream iconStream = RepositoryBrowserView.class.getResourceAsStream("/icons/github.png")) {
+            if (iconStream != null) {
+                windowIcon = new Image(shell.getDisplay(), iconStream);
+                shell.setImage(windowIcon);
+            }
+        } catch (IOException ignored) {
+            // The catalog remains usable if an optional window icon cannot be read.
+        }
         shell.addListener(SWT.Dispose, event -> {
             disposeImages();
             if (listener != null) listener.closed();
@@ -365,6 +376,8 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     private void disposeImages() {
         cards.values().forEach(RepositoryCard::disposeImage);
         cards.clear();
+        if (windowIcon != null && !windowIcon.isDisposed()) windowIcon.dispose();
+        windowIcon = null;
     }
 
     private final class RepositoryCard extends Composite {
@@ -401,20 +414,17 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                     org.eclipse.swt.graphics.Rectangle size = image.getBounds();
                     event.gc.drawImage(image, (bounds.width - size.width) / 2, (bounds.height - size.height) / 2);
                 } else {
+                    int width = Math.max(0, bounds.width - 1);
+                    int height = Math.max(0, bounds.height - 1);
+                    event.gc.setBackground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_BACKGROUND));
+                    event.gc.fillRoundRectangle(0, 0, width, height, 12, 12);
+                    event.gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW));
+                    event.gc.drawRoundRectangle(0, 0, width, height, 12, 12);
                     event.gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_DARK_SHADOW));
-                    int centerX = bounds.width / 2;
-                    int centerY = Math.max(48, bounds.height / 2 - 8);
-                    event.gc.drawLine(centerX - 48, centerY - 7, centerX - 18, centerY + 11);
-                    event.gc.drawLine(centerX - 18, centerY + 11, centerX + 17, centerY - 11);
-                    event.gc.drawLine(centerX + 17, centerY - 11, centerX + 47, centerY + 7);
-                    event.gc.drawRectangle(centerX - 58, centerY - 20, 20, 24);
-                    event.gc.drawRectangle(centerX - 27, centerY + 2, 20, 24);
-                    event.gc.drawRectangle(centerX + 7, centerY - 20, 20, 24);
-                    event.gc.drawRectangle(centerX + 37, centerY - 3, 20, 24);
-                    String placeholder = "No thumbnail";
+                    String placeholder = "Preview unavailable";
                     org.eclipse.swt.graphics.Point extent = event.gc.textExtent(placeholder);
-                    event.gc.drawString(placeholder, Math.max(2, centerX - extent.x / 2),
-                            Math.min(bounds.height - extent.y - 3, centerY + 35), true);
+                    event.gc.drawString(placeholder, (bounds.width - extent.x) / 2,
+                            (bounds.height - extent.y) / 2, true);
                 }
             });
 
