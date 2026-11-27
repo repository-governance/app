@@ -1,6 +1,7 @@
 package org.cda.archi.githubworkspace.views;
 
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 import org.cda.archi.githubworkspace.models.GitHubRepository;
@@ -25,14 +26,17 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
     }
 
     private final GitHubRepository repository;
+    private final String githubLogin;
     private final Listener listener;
     private final PreferencesService preferences = new PreferencesService();
     private Text planId;
+    private Label branch;
     private Label destination;
 
-    public CloneRepositoryDialog(Shell parent, GitHubRepository repository, Listener listener) {
+    public CloneRepositoryDialog(Shell parent, GitHubRepository repository, String githubLogin, Listener listener) {
         super(parent);
         this.repository = repository;
+        this.githubLogin = githubLogin == null ? "" : githubLogin;
         this.listener = listener;
         setShellStyle(SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
         setBlockOnOpen(true);
@@ -40,23 +44,49 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        setTitle("Clone Repository");
-        setMessage("Create or open an independent local plan branch.");
+        setTitle("Create Plan Workspace");
+        setMessage("Create a local plan branch in the selected repository.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         content.setLayout(new GridLayout(2, false));
-        value(content, "Repository:", repository.getFullName());
-        value(content, "Default Branch:", repository.getDefaultBranch().isBlank()
-                ? "Unavailable" : repository.getDefaultBranch());
+
+        Label sourceHeading = new Label(content, SWT.NONE);
+        sourceHeading.setText("SOURCE REPOSITORY");
+        sourceHeading.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+        Label source = new Label(content, SWT.WRAP);
+        source.setText(repository.getFullName()
+                + (repository.getDescription().isBlank() ? "" : " — " + repository.getDescription()));
+        source.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+
         new Label(content, SWT.NONE).setText("Plan ID:");
         planId = new Text(content, SWT.BORDER);
         planId.setMessage("D-09999");
         planId.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         planId.addModifyListener(event -> updateDestination());
-        value(content, "Workspace Location:", preferences.getWorkspaceRoot().toString());
-        Label destinationTitle = new Label(content, SWT.NONE);
-        destinationTitle.setText("Destination:");
+
+        new Label(content, SWT.NONE).setText("Solution Architect Code:");
+        Text architectCode = new Text(content, SWT.BORDER | SWT.READ_ONLY);
+        architectCode.setText(githubLogin.isBlank() ? "Not connected" : githubLogin);
+        architectCode.setToolTipText("GitHub account authenticated with Git Credential Manager.");
+        architectCode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        Label creationModeLabel = new Label(content, SWT.NONE);
+        creationModeLabel.setText("Creation mode:");
+        creationModeLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+        Label creationMode = new Label(content, SWT.WRAP);
+        creationMode.setText("Create local plan branch in the existing repository");
+        creationMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+
+        Label resultHeading = new Label(content, SWT.NONE);
+        resultHeading.setText("Result");
+        resultHeading.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+        value(content, "Repository:", repository.getName());
+        new Label(content, SWT.NONE).setText("Branch:");
+        branch = new Label(content, SWT.NONE);
+        branch.setText("(enter Plan ID)");
+        branch.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        new Label(content, SWT.NONE).setText("Local workspace:");
         destination = new Label(content, SWT.WRAP);
         destination.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         updateDestination();
@@ -66,7 +96,7 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
         createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
-        createButton(parent, IDialogConstants.OK_ID, "Clone", true);
+        createButton(parent, IDialogConstants.OK_ID, "Create Plan Workspace", true);
     }
 
     @Override
@@ -89,16 +119,45 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         if (destination == null || destination.isDisposed()) return;
         String value = planId.getText().trim();
         try {
-            Path path = new WorkspaceService(preferences).planPath(repository, value);
-            destination.setText(path.toString());
-            setErrorMessage(null);
-        } catch (IllegalArgumentException | IOException ex) {
-            destination.setText(preferences.getWorkspaceRoot().resolve("github.com")
-                    .resolve(repository.getFullName().replace('/', java.io.File.separatorChar))
-                    .resolve(value.isBlank() ? "<Plan ID>" : value).toString());
-            if (!value.isBlank()) setErrorMessage(ex.getMessage());
+            WorkspaceService workspace = new WorkspaceService(preferences);
+            destination.setText(destinationPreview(workspace, repository, value));
+            branch.setText(value.isBlank() ? "(enter Plan ID)"
+                    : isValidPlanId(value) ? value : "(invalid Plan ID)");
+            if (value.isBlank()) {
+                setErrorMessage(null);
+            } else if (isValidPlanId(value)) {
+                setErrorMessage(null);
+            } else {
+                setErrorMessage("Plan ID must match D-[0-9]+ (for example, D-09999).");
+            }
+        } catch (IOException | InvalidPathException ex) {
+            branch.setText(value.isBlank() ? "(enter Plan ID)" : "(invalid Plan ID)");
+            destination.setText("Destination unavailable");
+            setErrorMessage(ex.getMessage() == null ? "The destination path is invalid." : ex.getMessage());
         }
         destination.getParent().layout(true, true);
+    }
+
+    static String destinationPreview(WorkspaceService workspace, GitHubRepository repository, String planId)
+            throws IOException {
+        Path repositoryPath = workspace.repositoryPath(repository);
+        if (planId == null || planId.isBlank()) {
+            return repositoryPath + java.io.File.separator + "(enter Plan ID)";
+        }
+        try {
+            return workspace.planPath(repository, planId).toString();
+        } catch (IllegalArgumentException ex) {
+            return repositoryPath + java.io.File.separator + "(invalid Plan ID)";
+        }
+    }
+
+    private static boolean isValidPlanId(String value) {
+        try {
+            WorkspaceService.validatePlanIdSyntax(value);
+            return true;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     private static void value(Composite parent, String title, String value) {

@@ -63,6 +63,7 @@ public final class GitHubWorkspaceTests {
         testPlanCloneBranchAndReuse();
         testThumbnailSelectionAndCache();
         assertions += CatalogRegressionTests.run();
+        assertions += org.cda.archi.githubworkspace.views.CloneRepositoryDialogTests.run();
         testJsonValidation();
         System.out.println("PASS: " + assertions + " GitHub Workspace assertions");
     }

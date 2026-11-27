@@ -51,6 +51,8 @@ public final class ArtifactValidationTests {
                     "org/cda/archi/githubworkspace/infrastructure/ProcessExecutor.class",
                     "org/cda/archi/githubworkspace/infrastructure/CatalogWorker.class",
                     "org/cda/archi/githubworkspace/infrastructure/GitCredentialAdapter.class",
+                    "icons/github.png",
+                    "icons/catalogs.png",
                     "plugin.xml" }) {
                 require(jar.getEntry(entry) != null, "Bundle contains " + entry);
             }
@@ -62,26 +64,28 @@ public final class ArtifactValidationTests {
                     && xml.contains("org.eclipse.ui.menus") && xml.contains("org.eclipse.ui.preferencePages"),
                     "Archi/Eclipse extension points are valid");
 
-            // Archi 5.11.0's ArchiActionBarAdvisor#createFileMenu() creates M_FILE
-            // and terminates it with FILE_END; anchor this contribution to that real group.
+            // Archi 5.11.0's ArchiActionBarAdvisor#createFileMenu() creates M_FILE,
+            // starts it with FILE_START, and then adds New; insert first after that marker.
             String fileMenuLocation = "menu:" + IWorkbenchActionConstants.M_FILE
-                    + "?before=" + IWorkbenchActionConstants.FILE_END;
-            require("menu:file?before=fileEnd".equals(fileMenuLocation),
-                    "Archi File menu and FILE_END constants match the 5.11.0 source contract");
+                    + "?after=" + IWorkbenchActionConstants.FILE_START;
+            require("menu:file?after=fileStart".equals(fileMenuLocation),
+                    "Archi File menu and FILE_START constants match the 5.11.0 source contract");
             Element contribution = findMenuContribution(document, fileMenuLocation);
-            require(contribution != null, "Repository menu is inserted before Archi's File-end marker");
+            require(contribution != null, "Repository menu is inserted first after Archi's File-start marker");
 
             Element submenu = findById(contribution.getElementsByTagName("menu"),
                     "org.cda.archi.githubworkspace.menu");
-            require(submenu != null && "GitHub Workspace".equals(submenu.getAttribute("label")),
-                    "GitHub Workspace submenu ID and label are preserved");
+            require(submenu != null && "GitHub Workspace".equals(submenu.getAttribute("label"))
+                    && "icons/github.png".equals(submenu.getAttribute("icon")),
+                    "GitHub Workspace submenu ID, label and icon are present");
             Element browseCommand = findById(submenu.getElementsByTagName("command"),
                     "org.cda.archi.githubworkspace.browseRepositories.menu");
             require(browseCommand != null
                     && "org.cda.archi.githubworkspace.browseRepositories".equals(
                             browseCommand.getAttribute("commandId"))
-                    && "Browse Repositories...".equals(browseCommand.getAttribute("label")),
-                    "Browse Repositories command IDs and label are preserved");
+                    && "Browse Repositories...".equals(browseCommand.getAttribute("label"))
+                    && "icons/catalogs.png".equals(browseCommand.getAttribute("icon")),
+                    "Browse Repositories command IDs, label and icon are preserved");
             require(xml.contains("class=\"org.cda.archi.githubworkspace.controllers.GitHubWorkspaceController\"")
                     && xml.contains("commandId=\"org.cda.archi.githubworkspace.browseRepositories\""),
                     "Existing repository browser handler is preserved");

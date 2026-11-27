@@ -12,12 +12,14 @@
                commandId="org.cda.archi.githubworkspace.browseRepositories"/>
    </extension>
    <extension point="org.eclipse.ui.menus">
-       <menuContribution locationURI="menu:file?before=fileEnd">
-         <menu id="org.cda.archi.githubworkspace.menu" label="GitHub Workspace">
-            <command commandId="org.cda.archi.githubworkspace.browseRepositories"
-                     id="org.cda.archi.githubworkspace.browseRepositories.menu"
-                     label="Browse Repositories..."
-                     style="push"/>
+        <menuContribution locationURI="menu:file?after=fileStart">
+          <menu id="org.cda.archi.githubworkspace.menu" label="GitHub Workspace"
+                icon="icons/github.png">
+             <command commandId="org.cda.archi.githubworkspace.browseRepositories"
+                      id="org.cda.archi.githubworkspace.browseRepositories.menu"
+                      label="Browse Repositories..."
+                      icon="icons/catalogs.png"
+                      style="push"/>
          </menu>
       </menuContribution>
    </extension>

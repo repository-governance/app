@@ -52,7 +52,8 @@ public final class CatalogRegressionTests {
                 "Effective preference changes automatically refresh the catalog");
         assertions += sourceContains(view, "cloneButton.addListener(SWT.Selection",
                 "Clone is connected to the SWT selection event");
-        assertions += sourceContains(view, "new CloneRepositoryDialog(\n                            RepositoryBrowserView.this.getShell(), repository,",
+        assertions += sourceContains(view,
+                "new CloneRepositoryDialog(\n                            RepositoryBrowserView.this.getShell(), repository, connectedLogin,",
                 "Clone opens the Plan ID dialog with the catalog Shell and selected repository");
         assertions += sourceContains(view, "(selected, plan) -> listener.cloneRepository(selected, plan)",
                 "Plan ID submission propagates the selected repository to the controller");
@@ -60,6 +61,15 @@ public final class CatalogRegressionTests {
                 "Plan ID dialog is explicitly modal");
         assertions += sourceContains(cloneDialog, "setBlockOnOpen(true);",
                 "Plan ID dialog is opened synchronously from its SWT selection handler");
+        assertions += sourceContains(cloneDialog, "planId.setMessage(\"D-09999\");",
+                "Plan ID example remains a hint and is not prefilled");
+        assertions += sourceContains(cloneDialog, "new Text(content, SWT.BORDER | SWT.READ_ONLY)",
+                "Solution Architect Code is read-only");
+        assertions += sourceContains(cloneDialog,
+                "architectCode.setText(githubLogin.isBlank() ? \"Not connected\" : githubLogin);",
+                "Solution Architect Code is populated from the authenticated GitHub login");
+        assertions += sourceContains(cloneDialog, "Create local plan branch in the existing repository",
+                "Plan creation remains local and does not add the fork option");
         assertions += sourceContains(controller, "public void closed() {\n        RepositoryBrowserView closingView = view;\n        generation++;",
                 "Closing the catalog invalidates callbacks before cancellation");
         assertions += sourceContains(controller, "view.getShell().forceActive();\n            return null;",

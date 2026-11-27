@@ -63,6 +63,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     private Composite catalog;
     private boolean busy;
     private boolean authenticated;
+    private String connectedLogin = "";
 
     public RepositoryBrowserView(Shell parentShell) {
         super(parentShell);
@@ -177,6 +178,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     public void setAuthenticationStatus(AuthenticationStatus status) {
         if (accountLabel == null || accountLabel.isDisposed()) return;
         authenticated = status.isAuthenticated();
+        connectedLogin = status.isAuthenticated() ? status.getUser().getLogin() : "";
         accountLabel.setText(status.isAuthenticated()
                 ? "Connected as " + status.getUser().getLogin()
                 : status.getMessage());
@@ -462,7 +464,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                 }
                 try {
                     CloneRepositoryDialog dialog = new CloneRepositoryDialog(
-                            RepositoryBrowserView.this.getShell(), repository,
+                            RepositoryBrowserView.this.getShell(), repository, connectedLogin,
                             (selected, plan) -> listener.cloneRepository(selected, plan));
                     dialog.open();
                 } catch (RuntimeException ex) {

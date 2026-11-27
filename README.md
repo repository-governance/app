@@ -55,7 +55,7 @@ The preference page uses Archi's native **Apply**, **Apply and Close**, **Cancel
 
 ## Browse repositories
 
-The File-menu contribution was checked against Archi 5.11.0's [`ArchiActionBarAdvisor.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/actions/ArchiActionBarAdvisor.java): Archi creates the File menu using `IWorkbenchActionConstants.M_FILE` and adds its native Open Model action with ID `com.archimatetool.editor.action.openModel`. GitHub Workspace contributes a submenu inside that menu after the native action. The preference page uses Eclipse's `org.eclipse.ui.preferencePages` extension point, which Archi 5.11.0 itself declares in its `plugin.xml`.
+The File-menu contribution was checked against Archi 5.11.0's [`ArchiActionBarAdvisor.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/actions/ArchiActionBarAdvisor.java): Archi creates the File menu using `IWorkbenchActionConstants.M_FILE`, places `FILE_START` before New, and terminates it with `FILE_END`. GitHub Workspace contributes immediately after `FILE_START`, so it appears first, with the supplied GitHub icon on the submenu and the supplied catalogs icon on Browse Repositories. The preference page uses Eclipse's `org.eclipse.ui.preferencePages` extension point, which Archi 5.11.0 itself declares in its `plugin.xml`.
 
 Connect to GitHub in the catalog. Search uses the saved organization and topic, GitHub REST API pagination, and existing completeness/rate-limit/error handling. The catalog includes a local text filter, Refresh, Preferences, connection status, an empty state, and scrollable repository cards.
 

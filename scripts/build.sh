@@ -19,6 +19,8 @@ javac --release 21 -encoding UTF-8 -classpath "$CLASSPATH" \
   -d "$ROOT/build/classes" @"$ROOT/build/sources.list"
 mkdir -p "$ROOT/build/bundle/META-INF"
 cp -R "$ROOT/build/classes/." "$ROOT/build/bundle/"
+mkdir -p "$ROOT/build/bundle/icons"
+cp "$ROOT/icons/github.png" "$ROOT/icons/catalogs.png" "$ROOT/build/bundle/icons/"
 sed "s/@VERSION@/$VERSION/g" "$ROOT/META-INF/MANIFEST.MF" > "$ROOT/build/bundle/META-INF/MANIFEST.MF"
 cp "$ROOT/plugin.xml" "$ROOT/build/bundle/plugin.xml"
 echo "Compiled GitHub Workspace $VERSION against $(wc -l < "$ROOT/build/archi-jars.list" | tr -d ' ') official Archi platform bundles."
