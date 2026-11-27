@@ -1,0 +1,25 @@
+name: Build Governance plug-in
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker compose build
+      - name: Test and package
+        run: |
+          export BUILDER_UID="$(id -u)"
+          export BUILDER_GID="$(id -g)"
+          docker compose run --rm builder
+      - name: Upload plug-in artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-0.1.0
+          path: dist/*
+          if-no-files-found: error
