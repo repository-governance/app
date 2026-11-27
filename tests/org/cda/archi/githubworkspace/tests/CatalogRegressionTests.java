@@ -54,26 +54,36 @@ public final class CatalogRegressionTests {
                 "Clone is connected to the SWT selection event");
         assertions += sourceContains(view,
                 "new CloneRepositoryDialog(\n                            RepositoryBrowserView.this.getShell(), repository, connectedLogin,",
-                "Clone opens the Plan ID dialog with the catalog Shell and selected repository");
+                "Clone opens the branch workspace dialog with the catalog Shell and selected repository");
         assertions += sourceContains(view, "(selected, plan) -> listener.cloneRepository(selected, plan)",
-                "Plan ID submission propagates the selected repository to the controller");
+                "Branch name submission propagates the selected repository to the controller");
         assertions += sourceContains(cloneDialog, "SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE",
-                "Plan ID dialog is explicitly modal");
+                "Branch workspace dialog is explicitly modal");
         assertions += sourceContains(cloneDialog, "setBlockOnOpen(true);",
-                "Plan ID dialog is opened synchronously from its SWT selection handler");
+                "Branch workspace dialog is opened synchronously from its SWT selection handler");
         assertions += sourceContains(cloneDialog, "planId.setMessage(\"D-09999\");",
-                "Plan ID example remains a hint and is not prefilled");
+                "Branch name example remains a hint and is not prefilled");
+        assertions += sourceContains(cloneDialog, "new Label(content, SWT.NONE).setText(\"Branch name:\");",
+                "The user-facing field identifies the value as a branch name");
         assertions += sourceContains(cloneDialog, "new Text(content, SWT.BORDER | SWT.READ_ONLY)",
                 "Solution Architect Code is read-only");
         assertions += sourceContains(cloneDialog,
                 "architectCode.setText(githubLogin.isBlank() ? \"Not connected\" : githubLogin);",
                 "Solution Architect Code is populated from the authenticated GitHub login");
-        assertions += sourceContains(cloneDialog, "Create local plan branch in the existing repository",
-                "Plan creation remains local and does not add the fork option");
+        assertions += sourceContains(cloneDialog,
+                "Create a local branch from the repository's default branch",
+                "The branch is described as local and based on the repository's default branch");
         assertions += sourceContains(controller, "public void closed() {\n        RepositoryBrowserView closingView = view;\n        generation++;",
                 "Closing the catalog invalidates callbacks before cancellation");
         assertions += sourceContains(controller, "view.getShell().forceActive();\n            return null;",
                 "Reopening the command focuses the current catalog instead of creating a second controller view");
+        assertions += sourceContains(controller,
+                "HandlerUtil.getActiveWorkbenchWindow(event);\n        Shell shell = workbenchWindow == null",
+                "The catalog is parented to Archi's workbench window");
+        assertions += sourceContains(controller, "view.getShell().setSize(1060, 760);\n        view.centerOnParent();",
+                "The catalog is centered after its initial size is applied");
+        assertions += sourceContains(view, "shell.setLocation(parentBounds.x + (parentBounds.width - size.x) / 2,",
+                "The catalog window is centered relative to the parent shell bounds");
         assertions += sourceContains(controller, "if (current != null) current.cancel();\n        if (task != null) task.cancel(true);",
                 "Closing the catalog cancels active work without leaving old callbacks live");
         assertions += sourceContains(controller, "worker.shutdownNow();",

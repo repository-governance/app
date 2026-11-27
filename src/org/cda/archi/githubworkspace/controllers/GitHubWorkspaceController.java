@@ -72,13 +72,16 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             view.getShell().forceActive();
             return null;
         }
-        Shell shell = HandlerUtil.getActiveShell(event);
+        org.eclipse.ui.IWorkbenchWindow workbenchWindow = HandlerUtil.getActiveWorkbenchWindow(event);
+        Shell shell = workbenchWindow == null
+                ? HandlerUtil.getActiveShell(event) : workbenchWindow.getShell();
         generation++;
         display = shell.getDisplay();
         view = new RepositoryBrowserView(shell);
         view.setListener(this);
         view.create();
         view.getShell().setSize(1060, 760);
+        view.centerOnParent();
         initialize();
         view.open();
         return null;

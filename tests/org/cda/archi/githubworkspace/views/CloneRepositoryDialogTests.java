@@ -23,16 +23,16 @@ public final class CloneRepositoryDialogTests {
 
             String empty = CloneRepositoryDialog.destinationPreview(workspace, repository, "");
             require(empty.equals(root.resolve("github.com/repository-governance/SBB-009999")
-                    + java.io.File.separator + "(enter Plan ID)"),
-                    "Empty Plan ID is shown as a presentation hint, not resolved as a filesystem segment");
+                    + java.io.File.separator + "(enter branch name)"),
+                    "Empty branch name is shown as a presentation hint, not resolved as a filesystem segment");
 
             String invalid = CloneRepositoryDialog.destinationPreview(workspace, repository, "D-<");
-            require(invalid.endsWith(java.io.File.separator + "(invalid Plan ID)"),
-                    "Invalid Plan ID does not get resolved as a path segment");
+            require(invalid.endsWith(java.io.File.separator + "(invalid branch name)"),
+                    "Invalid branch name does not get resolved as a path segment");
 
             String valid = CloneRepositoryDialog.destinationPreview(workspace, repository, "D-09999");
             require(valid.equals(root.resolve("github.com/repository-governance/SBB-009999/D-09999").toString()),
-                    "A valid human-entered Plan ID previews the normal workspace path");
+                    "A valid human-entered branch name previews the normal workspace path");
             return 3;
         } finally {
             deleteTree(root);

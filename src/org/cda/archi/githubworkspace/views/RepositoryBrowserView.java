@@ -18,6 +18,7 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.FontData;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -71,6 +72,18 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     }
 
     public void setListener(Listener listener) { this.listener = listener; }
+
+    /** Centers the catalog window over its Archi workbench parent after its initial size is set. */
+    public void centerOnParent() {
+        Shell shell = getShell();
+        Shell parent = shell == null || shell.isDisposed() || !(shell.getParent() instanceof Shell parentShell)
+                ? null : parentShell;
+        if (parent == null || parent.isDisposed()) return;
+        Rectangle parentBounds = parent.getBounds();
+        org.eclipse.swt.graphics.Point size = shell.getSize();
+        shell.setLocation(parentBounds.x + (parentBounds.width - size.x) / 2,
+                parentBounds.y + (parentBounds.height - size.y) / 2);
+    }
 
     @Override
     protected void configureShell(Shell shell) {
@@ -454,7 +467,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             actions.setLayout(actionsLayout);
             cloneButton = new Button(actions, SWT.PUSH);
             cloneButton.setText("Clone");
-            cloneButton.setToolTipText("Choose a Plan ID and clone this repository.");
+            cloneButton.setToolTipText("Choose a local branch name and clone this repository from its default branch.");
             cloneButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
             cloneButton.addListener(SWT.Selection, event -> {
                 if (busy) return;
@@ -468,7 +481,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                             (selected, plan) -> listener.cloneRepository(selected, plan));
                     dialog.open();
                 } catch (RuntimeException ex) {
-                    showError("Could not open the Plan ID dialog: "
+                    showError("Could not open the branch workspace dialog: "
                             + (ex.getMessage() == null ? "unexpected SWT/JFace error." : ex.getMessage()));
                 }
             });
@@ -490,13 +503,13 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             for (Button button : openButtons) if (!button.isDisposed()) button.dispose();
             openButtons.clear();
             if (!plans.isEmpty()) {
-                plansSummary.setText("Local plans (" + plans.size() + "): " + String.join(", ", plans));
+                plansSummary.setText("Local branches (" + plans.size() + "): " + String.join(", ", plans));
                 plansSummary.setVisible(true);
                 ((GridData) plansSummary.getLayoutData()).exclude = false;
                 for (String plan : plans) {
                     Button open = new Button(actions, SWT.PUSH);
                     open.setText("Open " + plan);
-                    open.setToolTipText("Open the local ArchiMate model for " + plan + ".");
+                    open.setToolTipText("Open the local workspace for branch " + plan + ".");
                     open.setEnabled(!busy);
                     open.addListener(SWT.Selection, event -> {
                         if (!busy && listener != null) listener.openModel(repository, plan);

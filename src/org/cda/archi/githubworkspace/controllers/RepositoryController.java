@@ -74,7 +74,7 @@ public final class RepositoryController {
         Path destination = workspace.preparePlanDirectory(repository, planId);
         workspace.validateDestination(destination);
         cancellation.throwIfCancelled();
-        progress.accept("Validating Plan ID...");
+        progress.accept("Validating branch name...");
         git.validateBranchName(planId, cancellation);
         git.clonePlanOrReuse(repository.getCloneUrl(), WorkspaceService.repositoryOrganization(repository),
                 repository.getName(), repository.getDefaultBranch(), planId, destination, cancellation, progress);

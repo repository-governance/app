@@ -18,7 +18,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
-/** Captures a plan branch name and previews its safe local destination. */
+/** Captures a local branch name and previews its safe workspace destination. */
 public final class CloneRepositoryDialog extends TitleAreaDialog {
     @FunctionalInterface
     public interface Listener {
@@ -44,8 +44,8 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        setTitle("Create Plan Workspace");
-        setMessage("Create a local plan branch in the selected repository.");
+        setTitle("Create Branch Workspace");
+        setMessage("Create a local branch from the selected repository's default branch.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -59,9 +59,10 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
                 + (repository.getDescription().isBlank() ? "" : " — " + repository.getDescription()));
         source.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
-        new Label(content, SWT.NONE).setText("Plan ID:");
+        new Label(content, SWT.NONE).setText("Branch name:");
         planId = new Text(content, SWT.BORDER);
         planId.setMessage("D-09999");
+        planId.setToolTipText("This becomes the name of the local branch and workspace folder.");
         planId.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         planId.addModifyListener(event -> updateDestination());
 
@@ -75,7 +76,7 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         creationModeLabel.setText("Creation mode:");
         creationModeLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         Label creationMode = new Label(content, SWT.WRAP);
-        creationMode.setText("Create local plan branch in the existing repository");
+        creationMode.setText("Create a local branch from the repository's default branch");
         creationMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
         Label resultHeading = new Label(content, SWT.NONE);
@@ -84,7 +85,7 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         value(content, "Repository:", repository.getName());
         new Label(content, SWT.NONE).setText("Branch:");
         branch = new Label(content, SWT.NONE);
-        branch.setText("(enter Plan ID)");
+        branch.setText("(enter branch name)");
         branch.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         new Label(content, SWT.NONE).setText("Local workspace:");
         destination = new Label(content, SWT.WRAP);
@@ -96,7 +97,7 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
         createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
-        createButton(parent, IDialogConstants.OK_ID, "Create Plan Workspace", true);
+        createButton(parent, IDialogConstants.OK_ID, "Create Branch Workspace", true);
     }
 
     @Override
@@ -121,17 +122,17 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         try {
             WorkspaceService workspace = new WorkspaceService(preferences);
             destination.setText(destinationPreview(workspace, repository, value));
-            branch.setText(value.isBlank() ? "(enter Plan ID)"
-                    : isValidPlanId(value) ? value : "(invalid Plan ID)");
+            branch.setText(value.isBlank() ? "(enter branch name)"
+                    : isValidPlanId(value) ? value : "(invalid branch name)");
             if (value.isBlank()) {
                 setErrorMessage(null);
             } else if (isValidPlanId(value)) {
                 setErrorMessage(null);
             } else {
-                setErrorMessage("Plan ID must match D-[0-9]+ (for example, D-09999).");
+                setErrorMessage("Branch name must match D-[0-9]+ (for example, D-09999).");
             }
         } catch (IOException | InvalidPathException ex) {
-            branch.setText(value.isBlank() ? "(enter Plan ID)" : "(invalid Plan ID)");
+            branch.setText(value.isBlank() ? "(enter branch name)" : "(invalid branch name)");
             destination.setText("Destination unavailable");
             setErrorMessage(ex.getMessage() == null ? "The destination path is invalid." : ex.getMessage());
         }
@@ -142,12 +143,12 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
             throws IOException {
         Path repositoryPath = workspace.repositoryPath(repository);
         if (planId == null || planId.isBlank()) {
-            return repositoryPath + java.io.File.separator + "(enter Plan ID)";
+            return repositoryPath + java.io.File.separator + "(enter branch name)";
         }
         try {
             return workspace.planPath(repository, planId).toString();
         } catch (IllegalArgumentException ex) {
-            return repositoryPath + java.io.File.separator + "(invalid Plan ID)";
+            return repositoryPath + java.io.File.separator + "(invalid branch name)";
         }
     }
 

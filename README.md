@@ -59,14 +59,14 @@ The File-menu contribution was checked against Archi 5.11.0's [`ArchiActionBarAd
 
 Connect to GitHub in the catalog. Search uses the saved organization and topic, GitHub REST API pagination, and existing completeness/rate-limit/error handling. The catalog includes a local text filter, Refresh, Preferences, connection status, an empty state, and scrollable repository cards.
 
-Cards show repository name, description, visibility, default branch, local plan checkouts, and a **Clone** action. A thumbnail is loaded asynchronously only as its card enters the viewport. GitHub's authenticated REST Contents API is used; the first PNG in `thumbnails/` by alphabetical filename is selected. Non-PNG files are ignored, absent thumbnails retain a placeholder, PNG dimensions are bounded, aspect ratio is preserved, and a bounded in-memory cache avoids repeat requests. No repository is cloned just to display an image. `manifest.json` and thumbnails are not generated or changed.
+Cards show repository name, description, visibility, default branch, local branch workspaces, and a **Clone** action. A thumbnail is loaded asynchronously only as its card enters the viewport. GitHub's authenticated REST Contents API is used; the first PNG in `thumbnails/` by alphabetical filename is selected. Non-PNG files are ignored, absent thumbnails retain a placeholder, PNG dimensions are bounded, aspect ratio is preserved, and a bounded in-memory cache avoids repeat requests. No repository is cloned just to display an image. `manifest.json` and thumbnails are not generated or changed.
 
 ## Clone and open an architecture plan
 
-Choose **Clone** and enter a Plan ID matching `D-[0-9]+` (for example `D-09999`). The destination is:
+Choose **Clone** and enter a **branch name** matching `D-[0-9]+` (for example `D-09999`). This value is the name of the local working branch and its workspace folder; it is not a plan fetched from GitHub. The destination is:
 
 ```text
-{workspace-root}/github.com/{organization}/{repository}/{planId}/
+{workspace-root}/github.com/{organization}/{repository}/{branch-name}/
 ```
 
 For example:
@@ -76,17 +76,17 @@ For example:
   repository-governance\SBB-009999\D-09999\
 ```
 
-Git also validates the plan with `git check-ref-format --branch`. Cloning uses Git's HTTPS `clone_url` into a unique staging folder within the repository workspace. On a new checkout, GitHub Workspace reads the repository's actual default branch and checks whether the requested Plan ID exists remotely:
+Git also validates the branch name with `git check-ref-format --branch`. Cloning uses Git's HTTPS `clone_url` into a unique staging folder within the repository workspace. On a new checkout, GitHub Workspace reads the repository's actual default branch (for this repository, `master`) and checks whether a remote branch with the requested name already exists:
 
-- If it does not exist, it creates a local plan branch from the default branch.
-- If it exists, it fetches and checks out that branch with its `origin/{PlanID}` tracking branch.
+- If it does not exist, it creates a local branch from the default branch.
+- If it exists, it fetches and checks out that branch with its `origin/{branch-name}` tracking branch.
 - It does not push the new branch, commit changes, or alter the remote default branch.
 
-The staging checkout is validated before being published at the final Plan ID path. A failed or cancelled operation never publishes a valid-looking final checkout; incomplete staging data is retained rather than automatically deleted.
+The staging checkout is validated before being published at the final branch-name path. A failed or cancelled operation never publishes a valid-looking final checkout; incomplete staging data is retained rather than automatically deleted.
 
-When the same plan already exists locally, GitHub Workspace validates its Git root, `origin`, and active branch, then reuses it without changing branch or running `pull`, `fetch`, `reset`, `clean`, `stash`, `checkout`, or `switch`. Local edits are preserved. A mismatched repository or active branch is reported and left untouched.
+When the same branch workspace already exists locally, GitHub Workspace validates its Git root, `origin`, and active branch, then reuses it without changing branch or running `pull`, `fetch`, `reset`, `clean`, `stash`, `checkout`, or `switch`. Local edits are preserved. A mismatched repository or active branch is reported and left untouched.
 
-Repositories with local plans show a separate **Open Model** action for each validated Plan ID. **Clone** remains available to create another plan. Plans are separate Git working copies; Git worktrees are not used.
+Repositories with local branches show a separate **Open** action for each validated branch workspace. **Clone** remains available to enter another branch name. Each branch is a separate Git working copy; Git worktrees are not used.
 
 ## Native Archi model handling
 
@@ -98,7 +98,7 @@ Already-open models are deduplicated by physical file path, not by the model's i
 
 Git Credential Manager remains responsible for sign-in. Credentials are passed to GitHub API requests only in the HTTPS Authorization header and are not put in command arguments, URLs, logs, or files. New clones use validated HTTPS `github.com` URLs; process calls use argument vectors, never a shell.
 
-Organization, repository, Plan ID, workspace, and model paths are validated. Symbolic links and redirected workspace paths are rejected, and destinations are constrained to the configured workspace. GitHub Workspace does not change Git configuration, execute repository scripts, alter `manifest.json` or thumbnails, or delete local checkouts.
+Organization, repository, branch name, workspace, and model paths are validated. Symbolic links and redirected workspace paths are rejected, and destinations are constrained to the configured workspace. GitHub Workspace does not change Git configuration, execute repository scripts, alter `manifest.json` or thumbnails, or delete local checkouts.
 
 ## Automated tests and generated files
 
@@ -119,9 +119,9 @@ Automated tests cannot prove native UI behavior. In Archi 5.11.0, verify:
 1. Uninstall Governance, install the GitHub Workspace `.archiplugin`, restart, and confirm the menu is **File → GitHub Workspace → Browse Repositories...** with no separate Governance menu.
 2. Open Preferences, verify the default organization/topic/workspace, apply a custom writable location, restart Archi, and confirm the settings persist.
 3. Connect through Git Credential Manager, confirm the account, and browse repositories with and without thumbnails.
-4. Clone a repository into a new Plan ID. Verify the final path, active branch, and that no new branch was pushed. Repeat with a Plan ID already present remotely and verify upstream tracking.
+4. Clone a repository into a new branch name. Verify the final path, active branch, and that no new branch was pushed. Repeat with a branch of that name already present remotely and verify upstream tracking.
 5. Edit and save `source/design.archimate`; confirm `git status` sees the change.
-6. Clone a second Plan ID for the same repository. Open both models simultaneously and verify distinct paths do not cause duplicate-model or internal-ID conflicts in Archi.
+6. Clone a second branch name for the same repository. Open both models simultaneously and verify distinct paths do not cause duplicate-model or internal-ID conflicts in Archi.
 7. Open an already-open plan again; verify it activates the current model without reload or loss of unsaved changes.
 8. Change the workspace root and verify no checkout moved, disappeared, or changed, including any legacy `.governance/workspace/` directory.
 9. Cancel a clone and verify no final plan checkout was left published.
