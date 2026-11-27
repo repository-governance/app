@@ -1,7 +1,7 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Governance
-Bundle-SymbolicName: org.cda.archi.governance;singleton:=true
+Bundle-Name: GitHub Workspace
+Bundle-SymbolicName: org.cda.archi.githubworkspace;singleton:=true
 Bundle-Version: @VERSION@
 Bundle-Vendor: CDA
 Bundle-RequiredExecutionEnvironment: JavaSE-21
@@ -15,4 +15,4 @@ Require-Bundle: org.eclipse.core.runtime,
  com.archimatetool.model
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: .
-Automatic-Module-Name: org.cda.archi.governance
+Automatic-Module-Name: org.cda.archi.githubworkspace

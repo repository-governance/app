@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: archi-governance-builder:builder
+    image: archi-github-workspace-builder:builder
     user: "${BUILDER_UID:-1000}:${BUILDER_GID:-1000}"
     volumes:
       - .:/workspace

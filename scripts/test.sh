@@ -13,4 +13,4 @@ javac --release 21 --add-modules jdk.httpserver -encoding UTF-8 \
   -d "$ROOT/build/test-classes" @"$ROOT/build/test-sources.list"
 java --add-modules jdk.httpserver \
   -classpath "$ROOT/build/classes:$ROOT/build/test-classes:$PLATFORM_CP" \
-  org.cda.archi.governance.tests.GovernanceTests
+  org.cda.archi.githubworkspace.tests.GitHubWorkspaceTests

@@ -2,6 +2,9 @@ FROM eclipse-temurin:21.0.9_10-jdk-noble@sha256:10f263b4b053dddab217626b3607dfdb
 
 ARG ARCHI_VERSION=5.11.0
 ARG ARCHI_SHA256=a13f4f058c16d8653c1307a145b9dd6bddd4226abc952f58c586c46d61db219e
+LABEL org.opencontainers.image.title="GitHub Workspace" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.description="Docker builder for the native Archi 5.11.0 plug-in"
 ENV ARCHI_PLUGINS=/opt/archi/plugins
 WORKDIR /workspace
 
