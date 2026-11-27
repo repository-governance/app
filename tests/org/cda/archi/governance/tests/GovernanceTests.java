@@ -2,6 +2,8 @@ package org.cda.archi.governance.tests;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -9,6 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.cda.archi.governance.clients.GitHubApiClient;
@@ -27,12 +30,14 @@ import org.cda.archi.governance.models.GitHubOrganization;
 import org.cda.archi.governance.models.GitHubRepository;
 import org.cda.archi.governance.models.RepositorySearchResult;
 import org.cda.archi.governance.services.GitCredentialService;
+import org.cda.archi.governance.services.ArchiModelService;
 import org.cda.archi.governance.services.GitHubApiException;
 import org.cda.archi.governance.services.GitHubAuthenticationService;
 import org.cda.archi.governance.services.GitHubRepositoryService;
 import org.cda.archi.governance.services.GitHubSession;
 import org.cda.archi.governance.services.GitService;
 import org.cda.archi.governance.services.IncompleteSearchException;
+import org.cda.archi.governance.services.WorkspaceService;
 
 /** Mock-based tests: no real Git credential store, GitHub account, or user token. */
 public final class GovernanceTests {
@@ -49,8 +54,242 @@ public final class GovernanceTests {
         testIncompleteAndOverLimitResultsAreRejected();
         testEmptySearchAndAuthorizationErrors();
         testQueryValidationAndAuthorizationHostRestriction();
+        testWorkspacePathAndCloneUrlValidation();
+        testNativeModelOpenDeduplication();
+        testGitCloneReuseAndLocalChanges();
         testJsonValidation();
         System.out.println("PASS: " + assertions + " Governance assertions");
+    }
+
+    private static void testWorkspacePathAndCloneUrlValidation() throws Exception {
+        String originalHome = System.getProperty("user.home");
+        Path home = Files.createTempDirectory("governance-workspace-home-");
+        try {
+            System.setProperty("user.home", home.toString());
+            WorkspaceService workspace = new WorkspaceService();
+            GitHubRepository repository = repository("SBB-009999",
+                    "https://github.com/repository-governance/SBB-009999.git");
+            Path expected = home.resolve(".governance/workspace/github.com/repository-governance/SBB-009999");
+            equal(expected.toAbsolutePath().normalize(),
+                    workspace.repositoryPath("repository-governance", repository),
+                    "Workspace path uses the per-user GitHub organization/repository convention");
+            Path path = workspace.prepareRepositoryDirectory("repository-governance", repository);
+            check(Files.isDirectory(path.getParent()), "Workspace parent directories are created");
+            check(!Files.exists(path), "Preparing the workspace does not create or overwrite the checkout");
+            WorkspaceService.validateCloneUrl(repository, "repository-governance");
+            expectThrows(IllegalArgumentException.class,
+                    () -> workspace.repositoryPath("../outside", repository), "Organization traversal is rejected");
+            expectThrows(IllegalArgumentException.class,
+                    () -> workspace.repositoryPath("repository-governance",
+                            repository("../outside", "https://github.com/repository-governance/SBB-009999.git")),
+                    "Repository path traversal is rejected");
+            expectThrows(IOException.class,
+                    () -> WorkspaceService.validateCloneUrl(repository("SBB-009999",
+                            "https://evil.example/repository-governance/SBB-009999.git"), "repository-governance"),
+                    "Non-GitHub clone URL is rejected");
+            expectThrows(IOException.class,
+                    () -> WorkspaceService.validateCloneUrl(repository("SBB-009999",
+                            "https://github.com/other/SBB-009999.git"), "repository-governance"),
+                    "Clone URL identity mismatch is rejected");
+
+            Path model = path.resolve("source/design.archimate");
+            Files.createDirectories(model.getParent());
+            Files.writeString(model, "model fixture");
+            equal(model.toRealPath(), workspace.modelPath(path), "Only source/design.archimate is selected");
+            Files.delete(model);
+            expectThrows(IOException.class, () -> workspace.modelPath(path),
+                    "Missing ArchiMate source file is reported");
+        } finally {
+            if (originalHome == null) System.clearProperty("user.home");
+            else System.setProperty("user.home", originalHome);
+            deleteTree(home);
+        }
+    }
+
+    private static void testNativeModelOpenDeduplication() throws Exception {
+        Path root = Files.createTempDirectory("governance-native-model-");
+        try {
+            Path model = root.resolve("source/design.archimate");
+            Files.createDirectories(model.getParent());
+            Files.writeString(model, "native model test fixture");
+            AtomicReference<Path> loaded = new AtomicReference<>();
+            AtomicInteger opens = new AtomicInteger();
+            AtomicInteger activations = new AtomicInteger();
+            ArchiModelService service = new ArchiModelService(new ArchiModelService.NativeAccess() {
+                @Override public Path findLoaded(Path normalizedPhysicalPath) {
+                    return loaded.get();
+                }
+                @Override public Path openAndActivate(Path normalizedPhysicalPath) {
+                    opens.incrementAndGet();
+                    loaded.set(normalizedPhysicalPath);
+                    return normalizedPhysicalPath;
+                }
+                @Override public void activate(Path normalizedPhysicalPath) {
+                    activations.incrementAndGet();
+                }
+            });
+
+            Path first = service.openOrActivate(model);
+            Path second = service.openOrActivate(model.getParent().resolve("../source/design.archimate"));
+            equal(first, second, "Equivalent physical paths identify one loaded model");
+            equal(1, opens.get(), "An already-open model is not reloaded or duplicated");
+            equal(1, activations.get(), "An already-open model is activated");
+            expectThrows(IOException.class, () -> service.openOrActivate(root.resolve("missing.archimate")),
+                    "Missing model is not reported as opened");
+        } finally {
+            deleteTree(root);
+        }
+    }
+
+    private static void testGitCloneReuseAndLocalChanges() throws Exception {
+        Path temp = Files.createTempDirectory("governance-git-integration-");
+        try {
+            Path source = temp.resolve("source");
+            Files.createDirectories(source.resolve("source"));
+            runGit(List.of("git", "init", source.toString()), temp);
+            runGit(List.of("git", "-C", source.toString(), "config", "user.name", "Governance Test"), temp);
+            runGit(List.of("git", "-C", source.toString(), "config", "user.email", "test@example.invalid"), temp);
+            Files.writeString(source.resolve("README.md"), "fixture\n");
+            Files.writeString(source.resolve("source/design.archimate"), "fixture model\n");
+            runGit(List.of("git", "-C", source.toString(), "add", "--all"), temp);
+            runGit(List.of("git", "-C", source.toString(), "commit", "-m", "fixture"), temp);
+
+            Path bare = temp.resolve("origin.git");
+            runGit(List.of("git", "clone", "--bare", source.toString(), bare.toString()), temp);
+            Path destination = temp.resolve("workspace/github.com/repository-governance/SBB-009999");
+            Files.createDirectories(destination.getParent());
+            AtomicInteger cloneCommands = new AtomicInteger();
+            List<String> requestedClone = new ArrayList<>();
+            CommandRunner integrationRunner = new CommandRunner() {
+                private final ProcessExecutor delegate = new ProcessExecutor();
+                @Override public ProcessResult run(List<String> arguments, byte[] input, Duration timeout,
+                        CancellationToken cancellation) throws IOException, InterruptedException {
+                    return run(arguments, input, timeout, cancellation, ignored -> { });
+                }
+                @Override public ProcessResult run(List<String> arguments, byte[] input, Duration timeout,
+                        CancellationToken cancellation, java.util.function.Consumer<String> progress)
+                        throws IOException, InterruptedException {
+                    if (arguments.size() >= 6 && arguments.get(0).equals("git")
+                            && arguments.get(1).equals("clone")) {
+                        cloneCommands.incrementAndGet();
+                        requestedClone.addAll(arguments);
+                        List<String> localClone = new ArrayList<>(arguments);
+                        localClone.set(4, bare.toString());
+                        try (ProcessResult result = delegate.run(localClone, input, timeout, cancellation, progress)) {
+                            if (result.exitCode() != 0) return result;
+                        }
+                        runGit(List.of("git", "-C", arguments.get(5), "remote", "set-url", "origin",
+                                "git@github.com:repository-governance/SBB-009999.git"), temp);
+                        return new ProcessResult(0, new byte[0], new byte[0]);
+                    }
+                    return delegate.run(arguments, input, timeout, cancellation, progress);
+                }
+            };
+            GitService git = new GitService(integrationRunner);
+            String cloneUrl = "https://github.com/repository-governance/SBB-009999.git";
+            Path cloned = git.cloneOrReuse(cloneUrl, "repository-governance", "SBB-009999", destination,
+                    new CancellationToken(), ignored -> { });
+            equal(destination.toRealPath(), cloned, "Successful local Git clone is validated");
+            check(Files.isRegularFile(cloned.resolve("source/design.archimate")),
+                    "Clone includes source/design.archimate");
+            equal(List.of("git", "clone", "--progress", "--", cloneUrl), requestedClone.subList(0, 5),
+                    "Clone uses Git argument vector and the GitHub clone_url without credentials");
+            check(requestedClone.get(5).startsWith(destination.getParent().toString()),
+                    "Transient clone staging is created inside the persistent workspace");
+            check(!Path.of(requestedClone.get(5)).equals(destination),
+                    "The persistent checkout is published only after a successful validated clone");
+            check(GitService.sameGitHubRepository("https://github.com/repository-governance/SBB-009999.git",
+                    "repository-governance", "SBB-009999"), "HTTPS origin is accepted");
+            check(GitService.sameGitHubRepository("git@github.com:repository-governance/SBB-009999.git",
+                    "repository-governance", "SBB-009999"), "Equivalent SSH origin is accepted");
+            check(GitService.sameGitHubRepository("ssh://git@github.com/repository-governance/SBB-009999",
+                    "repository-governance", "SBB-009999"), "ssh:// origin without .git is accepted");
+            check(!GitService.sameGitHubRepository("https://evil.example/repository-governance/SBB-009999.git",
+                    "repository-governance", "SBB-009999"), "Non-GitHub origin is rejected");
+
+            Files.writeString(cloned.resolve("README.md"), "user's uncommitted change\n");
+            Path reused = git.cloneOrReuse(cloneUrl, "repository-governance", "SBB-009999", destination,
+                    new CancellationToken(), ignored -> { });
+            equal(cloned, reused, "Existing valid checkout is reused");
+            equal(1, cloneCommands.get(), "Second open does not execute git clone again");
+            equal("user's uncommitted change\n", Files.readString(cloned.resolve("README.md")),
+                    "Reusing a checkout preserves local edits");
+
+            Path wrongRemote = temp.resolve("workspace/github.com/repository-governance/WRONG-REMOTE");
+            Files.createDirectories(wrongRemote);
+            runGit(List.of("git", "init", wrongRemote.toString()), temp);
+            runGit(List.of("git", "-C", wrongRemote.toString(), "remote", "add", "origin",
+                    "https://github.com/another-org/WRONG-REMOTE.git"), temp);
+            expectThrows(IOException.class, () -> git.validateWorkingCopy("repository-governance",
+                    "WRONG-REMOTE", wrongRemote, new CancellationToken()),
+                    "Existing Git working copy with a mismatched origin is rejected");
+            check(Files.isDirectory(wrongRemote.resolve(".git")),
+                    "Mismatched Git working copy is preserved");
+
+            Path unrelated = temp.resolve("workspace/github.com/repository-governance/OTHER");
+            Files.createDirectories(unrelated);
+            Path marker = unrelated.resolve("user-data.txt");
+            Files.writeString(marker, "preserve");
+            expectThrows(IOException.class, () -> git.cloneOrReuse(cloneUrl, "repository-governance", "SBB-009999",
+                    unrelated, new CancellationToken(), ignored -> { }),
+                    "Existing unrelated directory is rejected without replacement");
+            equal("preserve", Files.readString(marker), "Existing unrelated files remain untouched");
+            equal(1, cloneCommands.get(), "Invalid existing path is never cloned over");
+
+            Path failedDestination = temp.resolve("workspace/github.com/repository-governance/FAILED");
+            CommandRunner failedCloneRunner = new CommandRunner() {
+                @Override public ProcessResult run(List<String> arguments, byte[] input, Duration timeout,
+                        CancellationToken cancellation) {
+                    return new ProcessResult(128, new byte[0],
+                            "fatal: Authentication failed".getBytes(StandardCharsets.UTF_8));
+                }
+            };
+            try {
+                new GitService(failedCloneRunner).cloneOrReuse(
+                        "https://github.com/repository-governance/FAILED.git", "repository-governance",
+                        "FAILED", failedDestination, new CancellationToken(), ignored -> { });
+                throw new AssertionError("Expected failed clone to be reported");
+            } catch (IOException ex) {
+                check(ex.getMessage().contains("authentication"), "Clone authentication failure is explained");
+            }
+            check(!Files.exists(failedDestination), "Failed clone is not published as the final checkout");
+            try (var entries = Files.list(failedDestination.getParent())) {
+                check(entries.anyMatch(path -> path.getFileName().toString().startsWith(".FAILED.clone-")),
+                        "Incomplete staging data is preserved and is not mistaken for a checkout");
+            }
+        } finally {
+            deleteTree(temp);
+        }
+    }
+
+    private static GitHubRepository repository(String name, String cloneUrl) {
+        return new GitHubRepository(9001, name, "repository-governance/" + name, "", "private", true,
+                List.of("archimate"), "https://github.com/repository-governance/" + name, cloneUrl,
+                "git@github.com:repository-governance/" + name + ".git", "main", null);
+    }
+
+    private static void runGit(List<String> arguments, Path workingDirectory)
+            throws IOException, InterruptedException {
+        ProcessBuilder builder = new ProcessBuilder(arguments);
+        builder.directory(workingDirectory.toFile());
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        byte[] output = process.getInputStream().readAllBytes();
+        if (!process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            throw new IOException("Test Git command timed out.");
+        }
+        if (process.exitValue() != 0) {
+            throw new IOException("Test Git command failed (output suppressed).");
+        }
+        Arrays.fill(output, (byte) 0);
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        if (root == null || !Files.exists(root)) return;
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+        }
     }
 
     private static void testProcessExecutorCapturesBothStreams() throws Exception {

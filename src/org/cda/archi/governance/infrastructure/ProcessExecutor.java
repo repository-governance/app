@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /** Executes argument-vector processes without a shell and drains both output streams. */
 public final class ProcessExecutor implements CommandRunner {
@@ -17,6 +18,12 @@ public final class ProcessExecutor implements CommandRunner {
     @Override
     public ProcessResult run(List<String> arguments, byte[] standardInput, Duration timeout,
             CancellationToken cancellation) throws IOException, InterruptedException {
+        return run(arguments, standardInput, timeout, cancellation, ignored -> { });
+    }
+
+    @Override
+    public ProcessResult run(List<String> arguments, byte[] standardInput, Duration timeout,
+            CancellationToken cancellation, Consumer<String> progress) throws IOException, InterruptedException {
         if (arguments == null || arguments.isEmpty()) throw new IllegalArgumentException("Command is required.");
         cancellation.throwIfCancelled();
         Process process;
@@ -27,7 +34,8 @@ public final class ProcessExecutor implements CommandRunner {
         }
 
         CompletableFuture<byte[]> stdout = CompletableFuture.supplyAsync(() -> readLimited(process.getInputStream()));
-        CompletableFuture<byte[]> stderr = CompletableFuture.supplyAsync(() -> readLimited(process.getErrorStream()));
+        CompletableFuture<byte[]> stderr = CompletableFuture.supplyAsync(
+                () -> readLimited(process.getErrorStream(), progress));
         long deadline = System.nanoTime() + timeout.toNanos();
         try (OutputStream stdin = process.getOutputStream()) {
             if (standardInput != null && standardInput.length > 0) stdin.write(standardInput);
@@ -62,16 +70,42 @@ public final class ProcessExecutor implements CommandRunner {
     }
 
     private static byte[] readLimited(InputStream input) {
+        return readLimited(input, ignored -> { });
+    }
+
+    private static byte[] readLimited(InputStream input, Consumer<String> progress) {
         try (InputStream stream = input; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
+            ByteArrayOutputStream line = new ByteArrayOutputStream();
             int read;
             while ((read = stream.read(buffer)) >= 0) {
                 int remaining = MAX_CAPTURE_BYTES - output.size();
                 if (remaining > 0) output.write(buffer, 0, Math.min(read, remaining));
+                for (int index = 0; index < read; index++) {
+                    int value = buffer[index] & 0xff;
+                    if (value == '\r' || value == '\n') {
+                        reportProgress(line, progress);
+                        line.reset();
+                    } else if (line.size() < 2048) {
+                        line.write(value);
+                    }
+                }
             }
+            reportProgress(line, progress);
             return output.toByteArray();
         } catch (IOException ex) {
             return new byte[0];
+        }
+    }
+
+    private static void reportProgress(ByteArrayOutputStream line, Consumer<String> progress) {
+        String output = line.toString(java.nio.charset.StandardCharsets.UTF_8);
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^(Receiving objects|Resolving deltas|Updating files):\\s*([0-9]{1,3})%")
+                .matcher(output);
+        if (matcher.find()) {
+            int percentage = Math.min(100, Integer.parseInt(matcher.group(2)));
+            progress.accept(matcher.group(1) + ": " + percentage + "%");
         }
     }
 

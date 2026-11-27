@@ -21,7 +21,8 @@ public final class GovernanceView extends TitleAreaDialog {
         void connect(String organization, String topic);
         void refresh(String organization, String topic);
         void cancel();
-        void openRepository(GitHubRepository repository);
+        void openModel(String organization, GitHubRepository repository);
+        void viewOnGithub(GitHubRepository repository);
         void closed();
     }
 
@@ -68,8 +69,11 @@ public final class GovernanceView extends TitleAreaDialog {
             }
         });
         repositories = new RepositoryListView(content);
-        repositories.setOpenListener(repository -> {
-            if (listener != null) listener.openRepository(repository);
+        repositories.setOpenModelListener(repository -> {
+            if (listener != null) listener.openModel(connection.getOrganization(), repository);
+        });
+        repositories.setViewOnGithubListener(repository -> {
+            if (listener != null) listener.viewOnGithub(repository);
         });
         return area;
     }
@@ -89,9 +93,31 @@ public final class GovernanceView extends TitleAreaDialog {
 
     public void setBusy(boolean busy, String message) {
         if (connection != null && !connection.isDisposed()) connection.setBusy(busy);
-        if (repositories != null && !repositories.isDisposed() && busy) repositories.showLoading();
+        if (repositories != null && !repositories.isDisposed()) {
+            repositories.setBusy(busy);
+            if (busy) repositories.showLoading();
+        }
         setErrorMessage(null);
         if (busy) setMessage(message);
+    }
+
+    public void setModelOpening(boolean busy, String message) {
+        if (connection != null && !connection.isDisposed()) connection.setBusy(busy);
+        if (repositories != null && !repositories.isDisposed()) repositories.setBusy(busy);
+        if (busy) {
+            setErrorMessage(null);
+            setMessage(message, IMessageProvider.INFORMATION);
+        }
+    }
+
+    public void showProgress(String message) {
+        if (getShell() == null || getShell().isDisposed()) return;
+        setErrorMessage(null);
+        setMessage(message, IMessageProvider.INFORMATION);
+    }
+
+    public void closeAfterModelOpened() {
+        if (getShell() != null && !getShell().isDisposed()) close();
     }
 
     public void showRepositories(RepositorySearchResult result) {
@@ -113,6 +139,11 @@ public final class GovernanceView extends TitleAreaDialog {
     public void showError(String message) {
         setErrorMessage(message);
         if (repositories != null && !repositories.isDisposed()) repositories.showMessage(message);
+    }
+
+    public void showModelError(String message) {
+        setErrorMessage(message);
+        if (repositories != null && !repositories.isDisposed()) repositories.showStatus(message);
     }
 
     public void showCancelled() {

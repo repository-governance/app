@@ -6,7 +6,7 @@ ENV ARCHI_PLUGINS=/opt/archi/plugins
 WORKDIR /workspace
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl unzip zip \
+    && apt-get install -y --no-install-recommends ca-certificates curl git unzip zip \
     && rm -rf /var/lib/apt/lists/*
 
 # Use the official Linux build and its published checksum list as the compile-time API.

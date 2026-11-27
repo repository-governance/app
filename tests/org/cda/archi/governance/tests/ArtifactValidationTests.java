@@ -26,6 +26,10 @@ public final class ArtifactValidationTests {
             require(attributes.getValue("Bundle-SymbolicName").startsWith("org.cda.archi.governance"),
                     "Bundle symbolic name matches");
             require(version.equals(attributes.getValue("Bundle-Version")), "Bundle version matches VERSION");
+            String requiredBundles = attributes.getValue("Require-Bundle");
+            require(requiredBundles.contains("com.archimatetool.editor")
+                    && requiredBundles.contains("com.archimatetool.model"),
+                    "Native Archi model APIs are declared as bundle dependencies");
             for (String entry : new String[] {
                     "org/cda/archi/governance/controllers/GovernanceController.class",
                     "org/cda/archi/governance/controllers/AuthenticationController.class",
@@ -37,6 +41,8 @@ public final class ArtifactValidationTests {
                     "org/cda/archi/governance/services/GitCredentialService.class",
                     "org/cda/archi/governance/services/GitHubAuthenticationService.class",
                     "org/cda/archi/governance/services/GitHubRepositoryService.class",
+                    "org/cda/archi/governance/services/WorkspaceService.class",
+                    "org/cda/archi/governance/services/ArchiModelService.class",
                     "org/cda/archi/governance/infrastructure/ProcessExecutor.class",
                     "org/cda/archi/governance/infrastructure/GitCredentialAdapter.class",
                     "plugin.xml" }) {

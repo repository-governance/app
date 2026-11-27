@@ -19,7 +19,10 @@ printf '%s\n' 'Magic file to signify this is an Archi plug-in bundle.' > "$ROOT/
   zip -q -j "$ARCHIPLUGIN" archi-plugin
   zip -q -j "$ARCHIPLUGIN" "$JAR"
 )
-(cd "$DIST" && sha256sum "$(basename "$JAR")" "$(basename "$ARCHIPLUGIN")" > SHA256SUMS)
+(cd "$DIST" && {
+  find . -maxdepth 1 -type f \( -name 'governance-*.jar' -o -name 'governance-*.archiplugin' \) \
+    -printf '%f\n' | sort | xargs -r sha256sum
+} > SHA256SUMS)
 jar --validate --file "$JAR"
 unzip -tq "$ARCHIPLUGIN"
 (cd "$DIST" && sha256sum --check SHA256SUMS)

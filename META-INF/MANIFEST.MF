@@ -10,7 +10,9 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.ui,
  org.eclipse.jface,
  org.eclipse.swt,
- org.eclipse.equinox.preferences
+ org.eclipse.equinox.preferences,
+ com.archimatetool.editor,
+ com.archimatetool.model
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: .
 Automatic-Module-Name: org.cda.archi.governance

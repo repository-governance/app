@@ -17,6 +17,8 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 
 /** Authorized repository table and browser action. */
 public final class RepositoryListView extends Composite {
@@ -25,7 +27,10 @@ public final class RepositoryListView extends Composite {
     private final TableViewer viewer;
     private final Label resultsLabel;
     private final Button openButton;
-    private Consumer<GitHubRepository> openListener;
+    private GitHubRepository selectedRepository;
+    private boolean busy;
+    private Consumer<GitHubRepository> openModelListener;
+    private Consumer<GitHubRepository> viewOnGithubListener;
 
     public RepositoryListView(Composite parent) {
         super(parent, SWT.NONE);
@@ -52,43 +57,75 @@ public final class RepositoryListView extends Composite {
         actions.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         actions.setLayout(new GridLayout(2, false));
         openButton = new Button(actions, SWT.PUSH);
-        openButton.setText("Open selected repository");
+        openButton.setText("Open Model");
         openButton.setEnabled(false);
         openButton.addListener(SWT.Selection, event -> openSelection());
-        viewer.addSelectionChangedListener(event -> openButton.setEnabled(!event.getSelection().isEmpty()));
+        viewer.addSelectionChangedListener(event -> {
+            Object selected = ((IStructuredSelection) viewer.getSelection()).getFirstElement();
+            selectedRepository = selected instanceof GitHubRepository repository ? repository : null;
+            updateOpenButton();
+        });
         viewer.addDoubleClickListener(event -> openSelection());
+
+        Menu contextMenu = new Menu(viewer.getControl());
+        MenuItem viewOnGithub = new MenuItem(contextMenu, SWT.PUSH);
+        viewOnGithub.setText("View on GitHub");
+        viewOnGithub.addListener(SWT.Selection, event -> {
+            if (!busy && selectedRepository != null && viewOnGithubListener != null) {
+                viewOnGithubListener.accept(selectedRepository);
+            }
+        });
+        contextMenu.addListener(SWT.Show, event -> viewOnGithub.setEnabled(!busy && selectedRepository != null));
+        viewer.getControl().setMenu(contextMenu);
     }
 
-    public void setOpenListener(Consumer<GitHubRepository> listener) { this.openListener = listener; }
+    public void setOpenModelListener(Consumer<GitHubRepository> listener) { this.openModelListener = listener; }
+    public void setViewOnGithubListener(Consumer<GitHubRepository> listener) { this.viewOnGithubListener = listener; }
+
+    public void setBusy(boolean busy) {
+        this.busy = busy;
+        updateOpenButton();
+    }
 
     public void showLoading() {
         if (isDisposed()) return;
         viewer.setInput(List.of());
         resultsLabel.setText("Searching authorized repositories…");
-        openButton.setEnabled(false);
+        selectedRepository = null;
+        updateOpenButton();
     }
 
     public void showRepositories(List<GitHubRepository> repositories, long totalCount) {
         if (isDisposed()) return;
         viewer.setInput(repositories);
+        selectedRepository = null;
         resultsLabel.setText(repositories.isEmpty()
                 ? "Search completed successfully: no authorized repositories matched."
                 : "Complete search: " + repositories.size() + " authorized repositories.");
-        openButton.setEnabled(false);
+        updateOpenButton();
     }
 
     public void showMessage(String message) {
         if (isDisposed()) return;
         viewer.setInput(List.of());
         resultsLabel.setText(message);
-        openButton.setEnabled(false);
+        selectedRepository = null;
+        updateOpenButton();
+    }
+
+    public void showStatus(String message) {
+        if (!isDisposed()) resultsLabel.setText(message);
     }
 
     private void openSelection() {
         Object selected = ((IStructuredSelection) viewer.getSelection()).getFirstElement();
-        if (selected instanceof GitHubRepository repository && openListener != null) {
-            openListener.accept(repository);
+        if (!busy && selected instanceof GitHubRepository repository && openModelListener != null) {
+            openModelListener.accept(repository);
         }
+    }
+
+    private void updateOpenButton() {
+        if (!openButton.isDisposed()) openButton.setEnabled(!busy && selectedRepository != null);
     }
 
     private void addColumn(String title, int width,

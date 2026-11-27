@@ -1,6 +1,7 @@
 package org.cda.archi.governance.controllers;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -138,7 +139,54 @@ public final class GovernanceController extends AbstractHandler implements Gover
     }
 
     @Override
-    public void openRepository(GitHubRepository repository) {
+    public void openModel(String organization, GitHubRepository repository) {
+        if (!busy.compareAndSet(false, true)) return;
+        CancellationToken token = new CancellationToken();
+        cancellation = token;
+        ui(() -> view.setModelOpening(true, "Preparing local workspace..."));
+        activeTask = worker.submit(() -> {
+            try {
+                Path modelFile = repositories.prepareModel(organization, repository, token,
+                        message -> ui(() -> view.showProgress(message)));
+                token.throwIfCancelled();
+                ui(() -> {
+                    if (token.isCancelled()) {
+                        finishModelOpen(token);
+                        return;
+                    }
+                    try {
+                        view.showProgress("Opening model...");
+                        repositories.openModel(modelFile);
+                        view.showProgress("Model opened in Archi.");
+                        view.closeAfterModelOpened();
+                    } catch (Exception ex) {
+                        view.showModelError(userFacingOpenError(ex));
+                    } finally {
+                        finishModelOpen(token);
+                    }
+                });
+            } catch (java.util.concurrent.CancellationException ex) {
+                ui(() -> {
+                    view.showCancelled();
+                    finishModelOpen(token);
+                });
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                ui(() -> {
+                    view.showCancelled();
+                    finishModelOpen(token);
+                });
+            } catch (Exception ex) {
+                ui(() -> {
+                    view.showModelError(userFacingOpenError(ex));
+                    finishModelOpen(token);
+                });
+            }
+        });
+    }
+
+    @Override
+    public void viewOnGithub(GitHubRepository repository) {
         worker.submit(() -> {
             try {
                 repositories.openInBrowser(repository);
@@ -226,6 +274,22 @@ public final class GovernanceController extends AbstractHandler implements Gover
         GitHubSession current = session;
         session = null;
         if (current != null) current.close();
+    }
+
+    private void finishModelOpen(CancellationToken token) {
+        busy.set(false);
+        if (cancellation == token) cancellation = null;
+        activeTask = null;
+        if (view != null && !view.getShell().isDisposed()) view.setModelOpening(false, "");
+    }
+
+    private static String userFacingOpenError(Exception error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) return "Governance could not open this repository's ArchiMate model.";
+        if (message.contains(":\\") || message.contains("/.governance/") || message.contains("\\.governance\\")) {
+            return "The local workspace could not be accessed. Check directory permissions and available disk space.";
+        }
+        return message;
     }
 
     @FunctionalInterface

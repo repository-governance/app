@@ -1,51 +1,60 @@
 # Governance for Archi
 
-Governance is an Archi 5.11.0 plug-in for authenticating as the signed-in local Git user and searching repositories that GitHub makes accessible to that user. It performs read-only Git configuration/process queries and HTTPS `GET` requests; it never clones, writes, or changes GitHub permissions.
+Governance 0.2.0 is an Archi 5.11.0 plug-in for authenticating with the user's local Git credentials, searching authorized GitHub repositories, cloning a selected repository into the user's persistent workspace, and opening its `source/design.archimate` file in Archi's native model tree and diagram editor. GitHub operations are read-only; editing and saving the model are performed by Archi on the local Git working copy.
 
 ## Compatibility
 
 - Target Archi: **5.11.0**.
-- Java: **21** (`JavaSE-21`, as declared by Archi 5.11.0).
-- Git: the user's local Git installation must be on `PATH`.
-- Git Credential Manager (or another configured Git credential helper) must be available through the user's Git configuration. A returned Git password is not assumed to be an API token: Governance validates it with `GET https://api.github.com/user`.
-- Build container: Eclipse Temurin **21.0.9+10**, pinned by image digest. The official Archi 5.11.0 Linux bundle archive is checksum-verified and supplies the compile-time Eclipse RCP/SWT/JFace/OSGi bundles.
+- Runtime Java: **21** (`JavaSE-21`).
+- Local Git must be on `PATH`; its configured Git Credential Manager (or another existing credential helper) handles GitHub authentication.
+- Docker Engine and Docker Compose are required to build. The pinned Eclipse Temurin 21 build image installs Git for temporary-repository integration tests and downloads the official, checksum-verified Archi 5.11.0 bundles for compilation. Neither Java, Maven nor Eclipse PDE is needed on the build host.
 
-The Docker container is a **build-only** environment. At runtime Archi launches the plug-in on the user's operating system, where it invokes that operating system's Git/Git Credential Manager. The container does not provide or receive user credentials.
+The build container is not the runtime. At runtime Archi invokes Git on the user's operating system and uses that operating system's Git and credential-manager configuration.
 
-## Architecture
+## Behavior and workspace
 
-```mermaid
-graph LR
-  Menu["Archi menu / GovernanceView"] --> GC["GovernanceController"]
-  GC --> AC["AuthenticationController"]
-  GC --> RC["RepositoryController"]
-  AC --> GS["GitService"]
-  AC --> GCS["GitCredentialService"]
-  GCS --> GCA["GitCredentialAdapter"]
-  GCA --> PE["ProcessExecutor"]
-  PE --> Git["Local Git + configured credential helper"]
-  AC --> Auth["GitHubAuthenticationService"]
-  RC --> Repos["GitHubRepositoryService"]
-  Auth --> HTTP["RestClient"]
-  Repos --> HTTP
-  HTTP --> API["https://api.github.com"]
-  RC --> Model["RepositorySearchResult / GitHubRepository"]
-  Model --> Table["RepositoryListView"]
+In Archi, open **Governance → GitHub Repositories…**, authenticate with **Connect**, and search an organization and topic (default `archimate`). Select a repository and choose **Open Model**. The context menu item **View on GitHub** remains available for the repository page.
+
+Governance creates the persistent workspace beneath:
+
+```text
+${user.home}/.governance/workspace/github.com/{organization}/{repository}/
 ```
 
-The SWT/JFace views only render state and forward user actions. Controllers coordinate work on a background executor; process and HTTP services do not depend on SWT. Git identity (`user.name` / `user.email`) and GitHub identity (`GET /user`) are displayed separately. Organization and topic preferences are stored through Eclipse instance preferences; credentials are not.
+On Windows this is typically:
+
+```text
+%USERPROFILE%\.governance\workspace\github.com\repository-governance\SBB-009999\
+```
+
+The checkout is a real Git repository. Governance opens only `source/design.archimate`, using Archi's native `IEditorModelManager.INSTANCE.openModel(File)` API. The model retains its checkout path; Archi Save/Ctrl+S writes directly to that file, and Git can report the local change with `git status`. `manifest.json`, thumbnails, and other repository files are not managed or shown by Governance.
+
+If the checkout already exists, Governance validates its Git root and `origin`, accepting equivalent GitHub HTTPS and SSH URLs, and reuses it without pull/fetch/reset/checkout/clean. Local edits are preserved. A directory that is not the expected working copy is not overwritten. A selected repository's clone URL must be HTTPS on `github.com` and match its organization/name.
+
+Clones run off the SWT UI thread and report progress. A unique staging directory within the workspace is published as the permanent checkout only after Git reports success and its root and origin validate. Failed/cancelled staging data is deliberately not removed automatically; this avoids deleting user data. Such hidden partial staging folders do not become the final checkout, and a later attempt can use a new staging folder. The final workspace path is never a temporary directory.
+
+If the same model file is already open, Governance compares normalized physical paths, selects/activates the existing model and does not reload it. Closing the Governance dialog cancels active work; after a successful native model open, the dialog closes automatically.
+
+## Archi native API reference
+
+The implementation follows the official Archi 5.11.0 source:
+
+- [`OpenModelAction.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/actions/OpenModelAction.java) invokes `IEditorModelManager.INSTANCE.openModel(file)` on the SWT thread.
+- [`IEditorModelManager.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/model/IEditorModelManager.java) exposes `openModel(File)`, `getModels()` and `isModelLoaded(File)`.
+- [`EditorModelManager.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/model/impl/EditorModelManager.java) loads the original file, assigns it to the model, registers it, and publishes the native Models-tree event.
+- [`TreeModelView.java`](https://github.com/archimatetool/archi/blob/release_5.11.0/com.archimatetool.editor/src/com/archimatetool/editor/views/tree/TreeModelView.java) handles that event by refreshing and selecting the model. `EditorManager.openDiagramEditor(...)` is used to activate a native diagram editor when the model contains a diagram.
+
+These APIs are exported by `com.archimatetool.editor` (with model APIs in `com.archimatetool.model`); both are declared in Governance's OSGi `Require-Bundle`.
 
 ## Authentication and security
 
-Governance calls the standard Git credential protocol with `git credential fill`, sending `protocol=https` and `host=github.com` through process stdin. The configured credential helper remains responsible for any required sign-in. Credential process output is captured, parsed, and cleared from byte/character buffers; the candidate password is never put in arguments, a URL, preferences, logs, or UI. The candidate is used only as `Authorization: Bearer …` on the fixed HTTPS GitHub API origin and is validated using `GET /user`.
+Governance sends `protocol=https` and `host=github.com` to `git credential fill` through process stdin. Git Credential Manager remains responsible for any sign-in interaction. The credential output is captured and cleared from transient buffers; no credential is put in process arguments, URLs, preferences, logs, or the UI. The candidate is validated with `GET https://api.github.com/user` and used only for HTTPS requests to `api.github.com`.
 
-If Git returns a credential that GitHub REST rejects (for example, a Git-only password or expired credential), Governance reports the incompatibility and does not try another authentication mechanism. Redirects are disabled and `RestClient` rejects non-HTTPS or non-`api.github.com` request URIs before attaching authorization. GitHub determines which repositories the authenticated user can see.
+The standalone Windows diagnostic `scripts/poc-github-auth.ps1` remains independent and is not used by the plug-in. Git credentials rejected by GitHub's REST API are reported as incompatible; no PAT prompt, OAuth app, GitHub App, or other fallback is attempted.
 
-The standalone Windows diagnostic used to validate this flow is `scripts/poc-github-auth.ps1`. It is not invoked by the plug-in and is not part of the runtime bundle.
+The workspace root and repository identity are validated against path traversal and redirected symbolic/junction paths. Repository names and clone URLs are checked before Git is invoked. Commands use `ProcessBuilder` argument vectors, not a shell. Governance does not execute scripts from cloned repositories or change Git configuration.
 
-## Build and tests
-
-Requirements on the build host: Docker Engine and Docker Compose. No local Java, Maven, Eclipse PDE, or GitHub token is required to build.
+## Build, tests and package
 
 From PowerShell at the repository root:
 
@@ -54,7 +63,7 @@ docker compose build
 docker compose run --rm builder
 ```
 
-The same container scripts compile, run mock-based tests, create and validate the bundle and write artifacts to `dist/`. The unit tests do not use real credentials or GitHub responses.
+The builder compiles against the official Archi platform, runs the existing authentication/search tests plus workspace, path-safety, model-open de-duplication, and temporary local Git integration tests, then packages and validates the bundle. Tests use no real GitHub credentials or API responses; the Git integration tests create temporary local repositories and perform actual local Git commands.
 
 Direct Docker use:
 
@@ -63,64 +72,45 @@ docker build -f docker/Dockerfile -t archi-governance-builder .
 docker run --rm -v "${PWD}:/workspace" archi-governance-builder
 ```
 
-On Linux, supply the checkout owner UID/GID to `docker run` if needed:
+`scripts/test.sh` compiles and runs tests. `scripts/package.sh` also generates the JAR and `.archiplugin`, checks the OSGi manifest and `plugin.xml`, validates ZIP integrity, and verifies SHA-256 checksums for the generated artifacts in `dist/`. Packaging 0.2.0 does not delete or replace 0.1.0 artifacts.
 
-```sh
-docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspace" archi-governance-builder
-```
+## Install or update in Archi on Windows
 
-Scripts, available inside the build image:
-
-```sh
-sh scripts/test.sh
-sh scripts/build.sh
-sh scripts/package.sh
-```
-
-`test.sh` compiles the current Java sources and runs automated tests. `package.sh` also creates and validates the JAR and `.archiplugin`, checks the OSGi manifest and extension XML, validates ZIP integrity, and verifies `SHA256SUMS`.
-
-## Install in Archi on Windows
-
-1. Install **Archi 5.11.0** from the [official archive](https://www.archimatetool.com/archive/).
-2. Build the plug-in and locate `dist/governance-0.1.0.archiplugin`.
-3. In Archi choose **Help → Manage Plug-ins… → Install New…** and select the `.archiplugin`.
+1. Use **Archi 5.11.0** from the [official archive](https://www.archimatetool.com/archive/).
+2. Build the plug-in and locate `dist/governance-0.2.0.archiplugin`.
+3. In Archi, choose **Help → Manage Plug-ins… → Install New…** and select that file. For an existing Governance 0.1.0 installation, install the 0.2.0 package as the update.
 4. Approve the requested restart.
 5. Open **Governance → GitHub Repositories…**.
 
-## Configure and validate
+## Functional validation in Archi
 
-1. Confirm Governance reports local Git and (if configured) the Git credential helper. The displayed `user.name` and `user.email` are local Git configuration, not proof of GitHub identity.
-2. Enter organization `repository-governance` and leave Repository Topic as `archimate` (the default).
-3. Select **Connect**. If Git Credential Manager prompts, complete its normal sign-in interaction. Governance then validates the resulting credential against GitHub `/user`.
-4. Confirm the GitHub account shown is the expected authenticated user and inspect the complete repository result list. The search succeeds with an empty result if no accessible repository matches; authentication, authorization, rate-limit, and incomplete-search failures are reported separately.
-5. For the known acceptance check, `SBB-009999` should appear if it remains accessible to the signed-in user and still has the `archimate` topic. Select a row and choose **Open selected repository** to open its GitHub page in the default browser.
-6. Use **Refresh** to repeat the search with the current in-memory session. Closing the window cancels work and clears the in-memory session token.
+1. Confirm local Git is detected. The displayed `user.name` and `user.email` are local Git identity, not proof of the GitHub account.
+2. Enter `repository-governance` and keep topic `archimate`.
+3. Choose **Connect** and complete any normal Git Credential Manager interaction. Confirm the authenticated GitHub login.
+4. Confirm `SBB-009999` appears when the repository remains accessible to that account and has the topic.
+5. Select it and choose **Open Model**. Confirm Governance reports progress, then closes; in Archi, confirm the model appears in the Models tree and a native diagram editor opens when diagrams exist.
+6. Edit a harmless model property, save with Ctrl+S, and confirm that the checkout's `source/design.archimate` changes and `git -C "<checkout>" status --short` reports it. Do not commit or push as part of this check.
+7. Press **Open Model** again from Governance after reconnecting/searching. Confirm the existing working copy is reused; if the model is already open, confirm it is selected/activated without a duplicate or reload.
+8. Use the repository context menu **View on GitHub** to open its GitHub page.
 
-To reproduce the earlier real authentication diagnostic outside Archi, run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\poc-github-auth.ps1
-```
-
-The script prints only the `/user` HTTP status, authenticated login, and repository names. It uses no mocks and never prints the credential. The successful PoC was observed in this environment; it does not replace the manual plug-in UI validation above.
+An automated build does not prove these native UI steps. Report them as unverified until executed in a running Archi 5.11.0 installation.
 
 ## Errors and limitations
 
-- **Git not found:** install Git and add it to the environment used to launch Archi.
-- **No helper configured:** configure a Git credential helper locally (Git Credential Manager is recommended); Governance does not ask for or store a PAT itself.
-- **Git credential rejected by `/user`:** the credential may not be a REST bearer token, or may be expired/revoked. No fallback is attempted.
-- **401/403/404/422/429:** Governance reports authentication, access, query, or rate-limit guidance. It does not try to bypass GitHub's access controls.
-- **Incomplete search or over 1,000 results:** no partial repository list is shown; narrow the topic and retry.
-- **Network/DNS/TLS failure:** check connectivity, proxy configuration, and the system certificate store. Certificate validation remains enabled.
-
-Automated tests and artifact checks run in Docker. A successful Docker build does **not** prove installation in Archi; a native Archi 5.11.0 Windows launch remains a manual validation step.
+- Missing Git or configured helper: install/configure Git and its helper for the environment that launches Archi. Governance does not request or store a PAT.
+- `/user` rejection: the helper's credential may be Git-only, expired or revoked. No fallback is attempted.
+- GitHub 401/403/404/422/429, incomplete search, or more than 1,000 matches: Governance reports the failure and does not show partial search results.
+- Existing incorrect working copy: it is left untouched and must be handled by the user.
+- Failed/cancelled clone: unique staging contents are retained rather than automatically deleted; retry creates a new staging directory. Governance does not clean these up.
+- Missing or invalid `source/design.archimate`: the dialog stays open and reports the failure.
+- Model loading uses Archi's synchronous native model manager on the SWT UI thread, as does Archi's own File > Open operation. Git, repository validation, and workspace preparation run asynchronously.
 
 ## Artifacts
 
 Generated in `dist/`:
 
-- `governance-0.1.0.jar` — OSGi bundle.
-- `governance-0.1.0.archiplugin` — official Archi plug-in ZIP containing the marker and bundle JAR.
-- `SHA256SUMS` — hashes of both deliverables.
+- `governance-0.2.0.jar` — OSGi bundle.
+- `governance-0.2.0.archiplugin` — installable Archi plug-in ZIP.
+- `SHA256SUMS` — verified checksums (including any retained 0.1.0 deliverables).
 
-The plug-in version is defined once in `VERSION`.
+The plugin version is defined by `VERSION`.
