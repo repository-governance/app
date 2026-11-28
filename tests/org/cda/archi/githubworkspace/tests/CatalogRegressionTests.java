@@ -41,6 +41,16 @@ public final class CatalogRegressionTests {
 
         assertions += sourceContains(plugin, "name=\"Data Manager...\"",
                 "Data Manager is contributed under the existing File menu");
+        assertions += sourceContains(plugin, "icon=\"icons/database.png\"",
+                "Data Manager menu item uses the dedicated database icon");
+        assertions += sourceContains(plugin, "icon=\"icons/repository.png\"",
+                "Management Repositories menu item uses the dedicated repository icon");
+        assertions += sourceContains(dataView, "getResourceAsStream(\"/icons/database.png\")",
+                "Data Manager window uses the dedicated database icon");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "getResourceAsStream(\"/icons/repository.png\")",
+                "Management Repositories window uses the dedicated repository icon");
         assertions += sourceContains(plugin,
                 "class=\"org.cda.archi.githubworkspace.controllers.DataManagerController\"",
                 "Data Manager menu command is handled by its MVC controller");

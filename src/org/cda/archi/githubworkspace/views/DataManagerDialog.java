@@ -95,7 +95,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     @Override protected void configureShell(Shell shell) {
         super.configureShell(shell);
         shell.setText("GitHub Workspace");
-        try (InputStream stream = DataManagerDialog.class.getResourceAsStream("/icons/github.png")) {
+        try (InputStream stream = DataManagerDialog.class.getResourceAsStream("/icons/database.png")) {
             if (stream != null) windowIcon = new Image(shell.getDisplay(), stream);
         } catch (IOException ignored) { }
         if (windowIcon != null) shell.setImage(windowIcon);

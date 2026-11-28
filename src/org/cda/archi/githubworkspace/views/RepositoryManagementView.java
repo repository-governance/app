@@ -65,7 +65,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
         shell.setText("GitHub Workspace");
-        try (InputStream stream = RepositoryManagementView.class.getResourceAsStream("/icons/github.png")) {
+        try (InputStream stream = RepositoryManagementView.class.getResourceAsStream("/icons/repository.png")) {
             if (stream != null) {
                 windowIcon = new Image(shell.getDisplay(), stream);
                 shell.setImage(windowIcon);

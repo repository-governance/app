@@ -31,15 +31,15 @@
                        icon="icons/catalogs.png"
                        style="push"/>
               <command commandId="org.cda.archi.githubworkspace.managementRepositories"
-                       id="org.cda.archi.githubworkspace.managementRepositories.menu"
-                       label="Management Repositories"
-                       icon="icons/catalogs.png"
-                        style="push"/>
-              <command commandId="org.cda.archi.githubworkspace.dataManager"
-                        id="org.cda.archi.githubworkspace.dataManager.menu"
-                        label="Data Manager..."
-                        icon="icons/catalogs.png"
-                        style="push"/>
+                        id="org.cda.archi.githubworkspace.managementRepositories.menu"
+                        label="Management Repositories"
+                        icon="icons/repository.png"
+                         style="push"/>
+               <command commandId="org.cda.archi.githubworkspace.dataManager"
+                         id="org.cda.archi.githubworkspace.dataManager.menu"
+                         label="Data Manager..."
+                         icon="icons/database.png"
+                         style="push"/>
          </menu>
       </menuContribution>
    </extension>
