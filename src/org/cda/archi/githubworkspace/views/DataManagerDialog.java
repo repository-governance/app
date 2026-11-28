@@ -296,7 +296,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         schemaTab.setControl(schemaPanel);
 
         Label schemaIntro = new Label(schemaPanel, SWT.WRAP);
-        schemaIntro.setText("Review and edit this table's structure. The table name is fixed to its GitHub folder.");
+        schemaIntro.setText("Review and edit this table's structure. Renaming moves the schema and records together.");
         schemaIntro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         ToolBar schemaToolbar = new ToolBar(schemaPanel, SWT.FLAT | SWT.RIGHT);
         schemaToolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));

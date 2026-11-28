@@ -58,7 +58,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         setTitle(initialSchema == null ? "Create Table" : "Edit Table Schema");
         setMessage(initialSchema == null
                 ? "Define a table schema. Exactly one String, Integer, or UUID primary key is required."
-                : "Update the schema. Existing records must remain compatible; the table name is fixed.");
+                : "Update the schema. Existing records must remain compatible. Renaming moves the table and its records.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -68,7 +68,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         properties.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         properties.setLayout(new GridLayout(2, false));
         new Label(properties, SWT.NONE).setText("Table Name:");
-        name = new Text(properties, SWT.BORDER | (initialSchema == null ? SWT.NONE : SWT.READ_ONLY));
+        name = new Text(properties, SWT.BORDER);
         name.setMessage("architects");
         if (initialSchema != null) name.setText(initialSchema.name());
         name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));

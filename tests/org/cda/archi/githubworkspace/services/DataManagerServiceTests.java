@@ -171,7 +171,7 @@ public final class DataManagerServiceTests {
                     "Existing schema edits persist via its original Contents SHA");
             assertions++;
             expect(java.io.IOException.class, () -> schemaRepository.update("owner", "data", loaded.branch(),
-                    schema, storedSchema.sha(), session, token),
+                    schema, schema, storedSchema.sha(), List.of(), session, token),
                     "Concurrent schema changes are rejected using stale SHA");
             assertions++;
             TableSchema activeSchema = withPattern;
@@ -217,12 +217,26 @@ public final class DataManagerServiceTests {
             expect(java.io.IOException.class, () -> records.update("owner", "data", loaded.branch(), activeSchema,
                     created, changed, session, token), "Stale SHA update reports a concurrency conflict");
             assertions++;
-            records.delete("owner", "data", loaded.branch(), activeSchema, updated, session, token);
-            check(records.list("owner", "data", loaded.branch(), activeSchema, session, token).isEmpty(),
+            TableSchema renamedSchema = new TableSchema("1.0", "architects_archive",
+                    activeSchema.description(), activeSchema.primaryKey(), activeSchema.columns());
+            tableManager.update("owner", "data", loaded.branch(), activeSchema, renamedSchema,
+                    updatedCatalog.schemaShas().get(activeSchema.name()), List.of(updated), session, token);
+            TableSchemaRepository.Catalog renamedCatalog =
+                    schemaRepository.discover("owner", "data", session, token);
+            String oldRecordPath = DataRecordRepository.recordPath(activeSchema, "AS117");
+            String newRecordPath = DataRecordRepository.recordPath(renamedSchema, "AS117");
+            check(renamedCatalog.schemas().stream().anyMatch(value -> value.equals(renamedSchema))
+                    && renamedCatalog.schemas().stream().noneMatch(value -> value.name().equals(activeSchema.name()))
+                    && !api.files.containsKey(oldRecordPath) && api.files.containsKey(newRecordPath),
+                    "Table rename moves its schema and record blob atomically to the new folder");
+            assertions++;
+            records.delete("owner", "data", loaded.branch(), renamedSchema, updated, session, token);
+            check(records.list("owner", "data", loaded.branch(), renamedSchema, session, token).isEmpty(),
                     "Delete uses fetched SHA and removes only after remote success");
             assertions++;
             check(api.lastContentWasUtf8 && api.lastDeleteBody.contains("\"sha\"")
-                    && api.lastMessage.equals("Delete record architects/AS117") && api.observedBranch.equals("main"),
+                    && api.lastMessage.equals("Delete record architects_archive/AS117") && api.observedBranch.equals("main")
+                    && api.renamePublished,
                     "Contents writes use Base64 UTF-8, branch and SHA with descriptive commit messages");
             assertions++;
         } finally {
@@ -259,6 +273,9 @@ public final class DataManagerServiceTests {
         private String lastDeleteBody = "";
         private String lastMessage = "";
         private String observedBranch = "";
+        private String headSha = "commit";
+        private Map<String, Stored> pendingTree;
+        private boolean renamePublished;
 
         @Override public RestResponse get(URI uri, String bearerToken, CancellationToken cancellation) {
             String path = uri.getPath();
@@ -267,13 +284,24 @@ public final class DataManagerServiceTests {
                         "size", initialized ? 1 : 0)));
             }
             if (path.equals("/repos/owner/data/git/ref/heads/main")) {
-                return initialized ? response(200, "{\"ref\":\"refs/heads/main\",\"object\":{\"sha\":\"commit\"}}")
+                return initialized ? response(200, JsonWriter.write(Map.of(
+                        "ref", "refs/heads/main", "object", Map.of("sha", headSha))))
                         : response(409, "{\"message\":\"Git Repository is empty.\"}");
+            }
+            if (path.matches("/repos/owner/data/git/commits/[^/]+")) {
+                return response(200, "{\"tree\":{\"sha\":\"tree-base\"}}");
             }
             if (path.endsWith("/contents")) return response(200, JsonWriter.write(directoryEntries("")));
             if (path.endsWith("/contents/tables")) return response(200, JsonWriter.write(directoryEntries("tables/")));
-            if (path.endsWith("/contents/tables/architects/records")) {
-                List<Map<String, Object>> entries = directoryEntries("tables/architects/records/");
+            if (path.matches(".*/contents/tables/[^/]+/records")) {
+                String directory = path.substring(path.indexOf("/contents/") + "/contents/".length());
+                List<Map<String, Object>> entries = directoryEntries(directory + "/");
+                return entries.isEmpty() ? response(404, "{\"message\":\"Not Found\"}")
+                        : response(200, JsonWriter.write(entries));
+            }
+            if (path.matches(".*/contents/tables/[^/]+")) {
+                String directory = path.substring(path.indexOf("/contents/") + "/contents/".length());
+                List<Map<String, Object>> entries = directoryEntries(directory + "/");
                 return entries.isEmpty() ? response(404, "{\"message\":\"Not Found\"}")
                         : response(200, JsonWriter.write(entries));
             }
@@ -325,12 +353,35 @@ public final class DataManagerServiceTests {
             Map<?, ?> body = (Map<?, ?>) JsonParser.parse(jsonBody);
             if (path.endsWith("/git/trees")) {
                 List<?> tree = (List<?>) body.get("tree");
+                if (body.containsKey("base_tree")) {
+                    pendingTree = new LinkedHashMap<>(files);
+                    for (Object item : tree) {
+                        Map<?, ?> entry = (Map<?, ?>) item;
+                        String entryPath = String.valueOf(entry.get("path"));
+                        Object sha = entry.get("sha");
+                        Object content = entry.get("content");
+                        if (sha == null && content == null) {
+                            pendingTree.remove(entryPath);
+                        } else if (content != null) {
+                            pendingTree.put(entryPath, new Stored(String.valueOf(content), "sha-" + (++revision)));
+                        } else {
+                            Stored blob = files.values().stream()
+                                    .filter(value -> value.sha().equals(String.valueOf(sha))).findFirst().orElse(null);
+                            if (blob == null) return response(422, "{\"message\":\"Unknown blob SHA\"}");
+                            pendingTree.put(entryPath, blob);
+                        }
+                    }
+                    return response(201, "{\"sha\":\"renamed-tree\"}");
+                }
                 Map<?, ?> first = (Map<?, ?>) tree.get(0);
                 pendingInitialPath = String.valueOf(first.get("path"));
                 pendingInitialContent = String.valueOf(first.get("content"));
                 return response(201, "{\"sha\":\"tree-sha\"}");
             }
-            if (path.endsWith("/git/commits")) return response(201, "{\"sha\":\"commit-sha\"}");
+            if (path.endsWith("/git/commits")) {
+                if (body.containsKey("parents")) return response(201, "{\"sha\":\"rename-commit\"}");
+                return response(201, "{\"sha\":\"commit-sha\"}");
+            }
             if (path.endsWith("/git/refs")) {
                 if (initialized) return response(422, "{\"message\":\"Reference already exists\"}");
                 initialized = true;
@@ -339,6 +390,20 @@ public final class DataManagerServiceTests {
                 return response(201, "{\"ref\":\"refs/heads/main\"}");
             }
             return response(404, "{}");
+        }
+
+        @Override public RestResponse patch(URI uri, String bearerToken, String jsonBody,
+                CancellationToken cancellation) {
+            Map<?, ?> body = (Map<?, ?>) JsonParser.parse(jsonBody);
+            if (!Boolean.FALSE.equals(body.get("force")) || pendingTree == null) {
+                return response(422, "{\"message\":\"Invalid ref update\"}");
+            }
+            files.clear();
+            files.putAll(pendingTree);
+            pendingTree = null;
+            headSha = String.valueOf(body.get("sha"));
+            renamePublished = true;
+            return response(200, "{}");
         }
 
         private List<Map<String, Object>> directoryEntries(String prefix) {

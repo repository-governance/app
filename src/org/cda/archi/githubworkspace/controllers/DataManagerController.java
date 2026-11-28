@@ -135,6 +135,10 @@ public final class DataManagerController extends AbstractHandler implements Data
         long taskGeneration = generation;
         String schemaSha = schemaShas.get(original.name());
         submit("Validating and saving schema " + original.name() + "...", token -> {
+            if (!original.name().equalsIgnoreCase(updated.name())
+                    && currentSchemas.stream().anyMatch(schema -> schema.name().equalsIgnoreCase(updated.name()))) {
+                throw new IOException("A table named " + updated.name() + " already exists.");
+            }
             GitHubSession current = ensureSession(token);
             List<DataRecord> existingRecords =
                     records.list(owner, repository, branch, original, current, token);
@@ -143,7 +147,7 @@ public final class DataManagerController extends AbstractHandler implements Data
             PluginLog.info("Data Manager", "Updated schema " + original.name() + ".");
             TableSchemaRepository.Catalog catalog = tables.discover(owner, repository, current, token);
             TableSchema saved = catalog.schemas().stream()
-                    .filter(schema -> schema.name().equals(original.name())).findFirst()
+                    .filter(schema -> schema.name().equals(updated.name())).findFirst()
                     .orElseThrow(() -> new IOException("Updated schema was not returned by GitHub. Refresh and retry."));
             List<DataRecord> refreshedRecords = records.list(
                     owner, repository, catalog.branch(), saved, current, token);
@@ -157,7 +161,9 @@ public final class DataManagerController extends AbstractHandler implements Data
             ui(taskGeneration, () -> {
                 view.showCatalog(catalog.schemas(), catalog.isPrivate(), catalog.emptyRepository());
                 view.showRecords(saved, refreshedRecords);
-                view.showNotice("Updated schema for table " + saved.name() + ".");
+                view.showNotice(original.name().equals(saved.name())
+                        ? "Updated schema for table " + saved.name() + "."
+                        : "Renamed table " + original.name() + " to " + saved.name() + ".");
             });
         });
     }

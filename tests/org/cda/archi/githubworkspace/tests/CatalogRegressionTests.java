@@ -62,6 +62,14 @@ public final class CatalogRegressionTests {
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateTableDialog.java"),
                 "grid.addListener(SWT.Selection, e -> validateForm());\n        redraw();",
                 "Opening an existing schema renders its loaded columns in the editor grid");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateTableDialog.java"),
+                "Renaming moves the table and its records.",
+                "Schema editor explains that renaming moves the table's data");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/clients/GitHubContentsClient.java"),
+                "api.patch(refUri, token",
+                "Table rename publishes all path changes through one non-forced Git ref update");
         assertions += sourceContains(dataController, "tables.update(owner, repository, branch, original, updated, schemaSha",
                 "Schema editing writes against the schema SHA to prevent lost concurrent updates");
         assertions += sourceContains(columnDialog, "Validate with regular expression",

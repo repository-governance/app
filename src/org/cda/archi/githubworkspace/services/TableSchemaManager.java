@@ -39,9 +39,6 @@ public final class TableSchemaManager {
     public void update(String owner, String repo, String branch, TableSchema original, TableSchema updated,
             String originalSha, List<DataRecord> existingRecords, GitHubSession session, CancellationToken token)
             throws IOException, InterruptedException {
-        if (!original.name().equals(updated.name())) {
-            throw new IOException("A table's name is bound to its GitHub folder and cannot be changed.");
-        }
         if (!existingRecords.isEmpty()
                 && (!original.primaryKey().equals(updated.primaryKey())
                         || original.primaryKeyColumn().type() != updated.primaryKeyColumn().type())) {
@@ -55,6 +52,6 @@ public final class TableSchemaManager {
                         + original.name() + "/" + record.primaryKey(original) + ": " + ex.getMessage());
             }
         }
-        repository.update(owner, repo, branch, updated, originalSha, session, token);
+        repository.update(owner, repo, branch, original, updated, originalSha, existingRecords, session, token);
     }
 }

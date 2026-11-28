@@ -10,6 +10,7 @@ import java.util.Map;
 import org.cda.archi.githubworkspace.clients.GitHubContentsClient;
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
 import org.cda.archi.githubworkspace.models.RemoteFile;
+import org.cda.archi.githubworkspace.models.DataRecord;
 import org.cda.archi.githubworkspace.models.TableSchema;
 import org.cda.archi.githubworkspace.services.GitHubSession;
 import org.cda.archi.githubworkspace.services.TableSchemaService;
@@ -111,10 +112,35 @@ public final class TableSchemaRepository {
         }
     }
 
-    public String update(String owner, String repo, String branch, TableSchema schema, String originalSha,
-            GitHubSession session, CancellationToken cancellation) throws IOException, InterruptedException {
+    public String update(String owner, String repo, String branch, TableSchema original, TableSchema schema,
+            String originalSha, List<DataRecord> records, GitHubSession session, CancellationToken cancellation)
+            throws IOException, InterruptedException {
         if (originalSha == null || originalSha.isBlank()) {
             throw new IOException("The schema SHA is unavailable. Refresh the table catalog before editing.");
+        }
+        if (!original.name().equals(schema.name())) {
+            List<GitHubContentsClient.Entry> targetEntries = client.list(owner, repo,
+                    "tables/" + schema.name(), branch,
+                    session.tokenForRequest(), cancellation);
+            if (!targetEntries.isEmpty()) {
+                throw new IOException("A GitHub folder already exists for table " + schema.name()
+                        + "; choose a different name or inspect that folder first.");
+            }
+            List<String[]> moves = new ArrayList<>();
+            for (DataRecord record : records) {
+                Object key = record.values().get(original.primaryKey());
+                if (key == null || record.sha() == null || record.sha().isBlank()) {
+                    throw new IOException("A record is missing its primary key or GitHub SHA; refresh and retry.");
+                }
+                moves.add(new String[] {
+                        DataRecordRepository.recordPath(original, key),
+                        record.sha(),
+                        DataRecordRepository.recordPath(schema, key)
+                });
+            }
+            client.moveTable(owner, repo, branch, original.name(), schema.name(), originalSha,
+                    schemas.serialize(schema), moves, session.tokenForRequest(), cancellation);
+            return "renamed";
         }
         String path = "tables/" + schema.name() + "/schema.json";
         return client.put(owner, repo, path, branch, schemas.serialize(schema),

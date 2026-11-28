@@ -5,6 +5,9 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
@@ -167,6 +170,85 @@ public final class GitHubContentsClient {
             throw new IOException("The repository was initialized concurrently. Refresh before retrying.");
         }
         require(created, 201, "Could not initialize the empty repository");
+    }
+
+    /**
+     * Moves a table's schema and record blobs in one commit, then atomically advances the branch ref.
+     * Existing record blobs are referenced by SHA so their contents do not need to be uploaded again.
+     */
+    public void moveTable(String owner, String repository, String branch, String oldName, String newName,
+            String oldSchemaSha, String newSchema, List<String[]> recordMoves,
+            String token, CancellationToken cancellation) throws IOException, InterruptedException {
+        String apiRoot = RestClient.API_ROOT + "/repos/" + segment(owner) + "/" + segment(repository);
+        URI refUri = URI.create(apiRoot + "/git/ref/heads/" + encodeRef(branch));
+        RestResponse ref = api.get(refUri, token, cancellation);
+        require(ref, 200, "Could not read the current data branch");
+        String headSha = nestedSha(object(ref.body()), "object");
+        RestResponse head = api.get(URI.create(apiRoot + "/git/commits/" + segment(headSha)), token, cancellation);
+        require(head, 200, "Could not read the current data commit");
+        String baseTree = nestedSha(object(head.body()), "tree");
+
+        RemoteFile currentSchema = read(owner, repository, "tables/" + oldName + "/schema.json",
+                branch, token, cancellation);
+        if (currentSchema == null || !oldSchemaSha.equals(currentSchema.sha())) {
+            throw new IOException("The table schema changed in GitHub. Refresh before renaming.");
+        }
+        for (String[] move : recordMoves) {
+            RemoteFile currentRecord = read(owner, repository, move[0], branch, token, cancellation);
+            if (currentRecord == null || !move[1].equals(currentRecord.sha())) {
+                throw new IOException("A table record changed in GitHub. Refresh before renaming.");
+            }
+        }
+
+        List<Map<String, Object>> treeEntries = new ArrayList<>();
+        String oldSchemaPath = "tables/" + oldName + "/schema.json";
+        String newSchemaPath = "tables/" + newName + "/schema.json";
+        treeEntries.add(treeEntry(oldSchemaPath, null, null));
+        treeEntries.add(treeEntry(newSchemaPath, null, newSchema));
+        for (String[] move : recordMoves) {
+            treeEntries.add(treeEntry(move[0], null, null));
+            treeEntries.add(treeEntry(move[2], move[1], null));
+        }
+
+        Map<String, Object> treeBody = new LinkedHashMap<>();
+        treeBody.put("base_tree", baseTree);
+        treeBody.put("tree", treeEntries);
+        RestResponse tree = api.post(URI.create(apiRoot + "/git/trees"), token,
+                JsonWriter.write(treeBody), cancellation);
+        require(tree, 201, "Could not stage the table rename");
+        String treeSha = str(object(tree.body()).get("sha"));
+        Map<String, Object> commitBody = new LinkedHashMap<>();
+        commitBody.put("message", "Rename table " + oldName + " to " + newName);
+        commitBody.put("tree", treeSha);
+        commitBody.put("parents", List.of(headSha));
+        RestResponse commit = api.post(URI.create(apiRoot + "/git/commits"), token,
+                JsonWriter.write(commitBody), cancellation);
+        require(commit, 201, "Could not create the table rename commit");
+        String commitSha = str(object(commit.body()).get("sha"));
+        RestResponse advanced = api.patch(refUri, token,
+                JsonWriter.write(Map.of("sha", commitSha, "force", false)), cancellation);
+        if (advanced.statusCode() == 409 || advanced.statusCode() == 422) {
+            throw conflict(advanced, "tables/" + oldName);
+        }
+        require(advanced, 200, "Could not publish the table rename");
+    }
+
+    private static Map<String, Object> treeEntry(String path, String sha, String content) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("path", path);
+        entry.put("mode", "100644");
+        entry.put("type", "blob");
+        entry.put("sha", sha);
+        if (content != null) entry.put("content", content);
+        return entry;
+    }
+
+    private static String nestedSha(Map<?, ?> parent, String childKey) throws IOException {
+        Object child = parent.get(childKey);
+        if (!(child instanceof Map<?, ?> object) || str(object.get("sha")).isBlank()) {
+            throw new IOException("GitHub returned an incomplete Git object.");
+        }
+        return str(object.get("sha"));
     }
 
     private static boolean isEmptyRepositoryConflict(String responseBody) {
