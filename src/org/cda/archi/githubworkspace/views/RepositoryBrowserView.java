@@ -15,6 +15,9 @@ import org.cda.archi.githubworkspace.models.AuthenticationStatus;
 import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.models.GitHubRepository;
 import org.cda.archi.githubworkspace.models.RepositorySearchResult;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
+import org.eclipse.jface.dialogs.Dialog;
+import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Font;
@@ -36,6 +39,8 @@ import org.eclipse.swt.custom.ScrolledComposite;
 import org.cda.archi.githubworkspace.services.PreferencesService;
 import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.eclipse.jface.window.Window;
+import org.eclipse.swt.accessibility.AccessibleAdapter;
+import org.eclipse.swt.accessibility.AccessibleEvent;
 
 /** Native SWT/JFace visual repository catalog. Effects are delegated to its MVC listener. */
 public final class RepositoryBrowserView extends TitleAreaDialog {
@@ -132,7 +137,6 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         preferencesButton.setText("Preferences");
         preferencesButton.setToolTipText("Edit repository filters and workspace location.");
         preferencesButton.addListener(SWT.Selection, event -> openPreferences());
-
         Composite statusRow = new Composite(root, SWT.NONE);
         statusRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         statusRow.setLayout(new GridLayout(3, false));
@@ -187,7 +191,27 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
 
     @Override
     protected org.eclipse.swt.widgets.Control createButtonBar(Composite parent) {
-        return null;
+        Composite bar = new Composite(parent, SWT.NONE);
+        bar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridLayout layout = new GridLayout(1, false);
+        layout.marginWidth = convertHorizontalDLUsToPixels(IDialogConstants.HORIZONTAL_MARGIN);
+        layout.marginHeight = convertVerticalDLUsToPixels(IDialogConstants.VERTICAL_MARGIN);
+        bar.setLayout(layout);
+
+        Button help = new Button(bar, SWT.PUSH);
+        Image helpImage = Dialog.getImage(Dialog.DLG_IMG_HELP);
+        if (helpImage != null) help.setImage(helpImage);
+        else help.setText("?");
+        help.setToolTipText("View Log");
+        help.getAccessible().addAccessibleListener(new AccessibleAdapter() {
+            @Override public void getName(AccessibleEvent event) { event.result = "View Log"; }
+        });
+        help.addListener(SWT.Selection, event -> {
+            PluginLog.info("Browse", "Opened the log viewer.");
+            new PluginLogDialog(getShell()).open();
+        });
+        help.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
+        return bar;
     }
 
     public void showGitStatus(GitConfiguration configuration) {
@@ -491,6 +515,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                             (selected, plan) -> listener.cloneRepository(selected, plan));
                     dialog.open();
                 } catch (RuntimeException ex) {
+                    PluginLog.error("Browse", "Could not open the branch workspace dialog.", ex);
                     showError("Could not open the branch workspace dialog: "
                             + (ex.getMessage() == null ? "unexpected SWT/JFace error." : ex.getMessage()));
                 }

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.cda.archi.githubworkspace.clients.RestClient;
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
 import org.cda.archi.githubworkspace.infrastructure.CatalogWorker;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
 import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.models.GitHubRepository;
 import org.cda.archi.githubworkspace.models.RepositoryTemplateFolder;
@@ -49,6 +50,7 @@ public final class RepositoryManagementController extends AbstractHandler
     public Object execute(ExecutionEvent event) throws ExecutionException {
         if (view != null && view.getShell() != null && !view.getShell().isDisposed()) {
             view.getShell().forceActive();
+            PluginLog.info("Repository Management", "Activated the existing management window.");
             return null;
         }
         org.eclipse.ui.IWorkbenchWindow window = HandlerUtil.getActiveWorkbenchWindow(event);
@@ -60,6 +62,8 @@ public final class RepositoryManagementController extends AbstractHandler
         view.create();
         view.getShell().setSize(1000, 680);
         view.centerOnParent();
+        PluginLog.info("Repository Management", "Opened management for organization "
+                + preferences.getOrganization() + ".");
         refresh();
         view.open();
         return null;
@@ -79,6 +83,7 @@ public final class RepositoryManagementController extends AbstractHandler
     public void requestCreate() {
         long taskGeneration = generation;
         if (!busy.compareAndSet(false, true)) return;
+        PluginLog.info("Repository Management", "Loading configured template folders.");
         CancellationToken token = new CancellationToken();
         cancellation = token;
         ui(taskGeneration, () -> view.setBusy(true, "Loading template folders..."));
@@ -87,6 +92,7 @@ public final class RepositoryManagementController extends AbstractHandler
                 GitHubSession current = ensureSession(token);
                 List<RepositoryTemplateFolder> folders = management.listTemplateFolders(
                         current, preferences.getTemplateRepository(), token);
+                PluginLog.info("Repository Management", "Loaded " + folders.size() + " root template folders.");
                 busy.set(false);
                 cancellation = null;
                 activeTask = null;
@@ -95,11 +101,14 @@ public final class RepositoryManagementController extends AbstractHandler
                     view.openCreateDialog(folders);
                 });
             } catch (CancellationException ex) {
+                PluginLog.info("Repository Management", "Template folder loading was cancelled.");
                 finish(taskGeneration, token, null, null);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Repository Management", "Template folder loading was interrupted.", ex);
                 finish(taskGeneration, token, null, null);
             } catch (Exception ex) {
+                PluginLog.error("Repository Management", "Could not load template folders.", ex);
                 finish(taskGeneration, token, null, message(ex));
             }
         });
@@ -107,22 +116,29 @@ public final class RepositoryManagementController extends AbstractHandler
 
     @Override
     public void createFromTemplate(String folder, String name, String description, boolean isPrivate) {
+        PluginLog.info("Repository Management", "Creating repository " + name + " from template folder " + folder
+                + " with visibility " + (isPrivate ? "private" : "public") + ".");
         submit("Preparing repository from template...", token -> {
             GitHubRepository created = management.createFromTemplateFolder(ensureSession(token),
                     preferences.getOrganization(), preferences.getTemplateRepository(), folder,
                     name, description, isPrivate, token,
-                    progress -> ui(generation, () -> view.setBusy(true, progress)));
+                    progress -> {
+                        PluginLog.info("Repository Management", progress);
+                        ui(generation, () -> view.setBusy(true, progress));
+                    });
             List<GitHubRepository> repositories = management.listOrganizationRepositories(
                     ensureSession(token), preferences.getOrganization(), token);
             ui(generation, () -> {
                 view.showRepositories(repositories, preferences.getOrganization());
                 view.showNotice("Created " + created.getFullName() + " from folder " + folder + ".");
             });
+            PluginLog.info("Repository Management", "Created " + created.getFullName() + " successfully.");
         });
     }
 
     @Override
     public void closed() {
+        PluginLog.info("Repository Management", "Closed management window.");
         generation++;
         CancellationToken token = cancellation;
         Future<?> task = activeTask;
@@ -156,6 +172,7 @@ public final class RepositoryManagementController extends AbstractHandler
 
     private void submit(String message, Operation operation) {
         if (!busy.compareAndSet(false, true)) return;
+        PluginLog.info("Repository Management", message);
         long taskGeneration = generation;
         CancellationToken token = new CancellationToken();
         cancellation = token;
@@ -165,11 +182,14 @@ public final class RepositoryManagementController extends AbstractHandler
                 operation.run(token);
                 finish(taskGeneration, token, null, null);
             } catch (CancellationException ex) {
+                PluginLog.info("Repository Management", "Operation cancelled.");
                 finish(taskGeneration, token, null, null);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Repository Management", "Operation interrupted.", ex);
                 finish(taskGeneration, token, null, null);
             } catch (Exception ex) {
+                PluginLog.error("Repository Management", "Operation failed.", ex);
                 finish(taskGeneration, token, null, message(ex));
             }
         });

@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
 
 /** Reused HTTP boundary, now constrained to GitHub's HTTPS API origin. */
 public final class RestClient implements GitHubApiClient {
@@ -58,6 +59,21 @@ public final class RestClient implements GitHubApiClient {
         return send(request, cancellation);
     }
 
+    @Override
+    public RestResponse patch(URI uri, String bearerToken, String jsonBody, CancellationToken cancellation)
+            throws IOException, InterruptedException {
+        validateApiUri(uri);
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(REQUEST_TIMEOUT)
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/vnd.github+json")
+                .header("Content-Type", "application/json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+        return send(request, cancellation);
+    }
+
     private RestResponse send(HttpRequest request, CancellationToken cancellation)
             throws IOException, InterruptedException {
         cancellation.throwIfCancelled();
@@ -72,6 +88,8 @@ public final class RestClient implements GitHubApiClient {
                 try {
                     HttpResponse<String> response = future.get(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)),
                             TimeUnit.NANOSECONDS);
+                    PluginLog.info("GitHub API", request.method() + " " + request.uri().getPath()
+                            + " -> HTTP " + response.statusCode());
                     return new RestResponse(response.statusCode(), response.body(), response.headers());
                 } catch (TimeoutException polling) {
                     if (System.nanoTime() >= deadline) throw polling;
@@ -82,9 +100,11 @@ public final class RestClient implements GitHubApiClient {
             throw ex;
         } catch (TimeoutException ex) {
             future.cancel(true);
+            PluginLog.error("GitHub API", request.method() + " " + request.uri().getPath() + " timed out.", ex);
             throw new IOException("GitHub request timed out.");
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
+            PluginLog.error("GitHub API", request.method() + " " + request.uri().getPath() + " failed.", cause);
             if (hasCause(cause, java.net.http.HttpTimeoutException.class)) {
                 throw new IOException("GitHub request timed out.");
             }

@@ -25,6 +25,7 @@ import org.cda.archi.githubworkspace.infrastructure.JsonParser;
 import org.cda.archi.githubworkspace.infrastructure.ProcessExecutionException;
 import org.cda.archi.githubworkspace.infrastructure.ProcessExecutor;
 import org.cda.archi.githubworkspace.infrastructure.ProcessResult;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
 import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.models.GitCredential;
 import org.cda.archi.githubworkspace.models.GitHubOrganization;
@@ -58,6 +59,7 @@ public final class GitHubWorkspaceTests {
         testQueryValidationAndAuthorizationHostRestriction();
         testWorkspacePathAndCloneUrlValidation();
         testPersistentPreferenceValuesAndWorkspaceValidation();
+        testPersistentDiagnosticLog();
         testNativeModelOpenDeduplication();
         testGitCloneReuseAndLocalChanges();
         testPlanCloneBranchAndReuse();
@@ -86,6 +88,11 @@ public final class GitHubWorkspaceTests {
             check(Files.isDirectory(repositoryDirectory), "Workspace and repository directories are prepared");
             check(!Files.exists(path), "Preparing a plan path does not create or overwrite a checkout");
             WorkspaceService.validateCloneUrl(repository);
+            equal("Operational-Gateway-Innovation-Center",
+                    WorkspaceService.normalizeRepositoryName("  Operational Gateway   Innovation Center  "),
+                    "Human-readable repository names are converted to hyphenated GitHub names");
+            equal("SBB-010001", WorkspaceService.normalizeRepositoryName("SBB-010001"),
+                    "Already-valid repository names are preserved");
             WorkspaceService.validateOrganization("repository-governance");
             expectThrows(IllegalArgumentException.class,
                     () -> WorkspaceService.validateOrganization("../outside"), "Organization traversal is rejected");
@@ -113,6 +120,29 @@ public final class GitHubWorkspaceTests {
             Files.delete(model);
             expectThrows(IOException.class, () -> workspace.modelPath(path),
                     "Missing ArchiMate source file is reported");
+        } finally {
+            if (originalHome == null) System.clearProperty("user.home");
+            else System.setProperty("user.home", originalHome);
+            deleteTree(home);
+        }
+    }
+
+    private static void testPersistentDiagnosticLog() throws Exception {
+        String originalHome = System.getProperty("user.home");
+        Path home = Files.createTempDirectory("github-workspace-log-home-");
+        try {
+            System.setProperty("user.home", home.toString());
+            PluginLog.info("Test", "persistent log entry");
+            PluginLog.error("Test", "stack trace fixture", new IllegalStateException("trace fixture"));
+            Path expected = home.resolve(".github-workspace/logs/github-workspace.log");
+            equal(expected.toAbsolutePath().normalize(), PluginLog.logFile(),
+                    "Diagnostic log is stored under the current user's profile");
+            String contents = PluginLog.readAll();
+            check(contents.contains("INFO [Test]") && contents.contains("persistent log entry"),
+                    "Diagnostic log appends timestamped info entries");
+            check(contents.contains("ERROR [Test]") && contents.contains("stack trace fixture")
+                    && contents.contains("java.lang.IllegalStateException: trace fixture"),
+                    "Diagnostic log persists the complete exception trace line by line");
         } finally {
             if (originalHome == null) System.clearProperty("user.home");
             else System.setProperty("user.home", originalHome);

@@ -59,15 +59,19 @@ The preference page uses Archi's native **Apply**, **Apply and Close**, **Cancel
 
 Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit. The initial branch uses the template repository's default branch name.
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit on the new repository's GitHub-default branch.
 
 Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
+
+## Diagnostic log
+
+The help icon in the lower-left corner of Browse Repositories and Management Repositories opens a modal, selectable multiline view of the complete trace, including operation messages and exception stack traces. The log is appended under the user's profile at `${user.home}/.github-workspace/logs/github-workspace.log` (on Windows: `%USERPROFILE%\.github-workspace\logs\github-workspace.log`). Authorization headers, tokens, credential output, and API request bodies are not written to the log.
 
 ## Manage organization repositories
 
 Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit. The initial branch uses the template repository's default branch name.
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit on the new repository's GitHub-default branch.
 
 Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 

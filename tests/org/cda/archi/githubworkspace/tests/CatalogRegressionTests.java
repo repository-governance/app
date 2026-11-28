@@ -73,9 +73,11 @@ public final class CatalogRegressionTests {
         assertions += sourceContains(cloneDialog,
                 "Create a local branch from the repository's default branch",
                 "The branch is described as local and based on the repository's default branch");
-        assertions += sourceContains(controller, "public void closed() {\n        RepositoryBrowserView closingView = view;\n        generation++;",
+        assertions += sourceContains(controller, "public void closed() {\n        PluginLog.info(\"Browse\", \"Closed repository catalog.\");\n"
+                        + "        RepositoryBrowserView closingView = view;\n        generation++;",
                 "Closing the catalog invalidates callbacks before cancellation");
-        assertions += sourceContains(controller, "view.getShell().forceActive();\n            return null;",
+        assertions += sourceContains(controller, "view.getShell().forceActive();\n            PluginLog.info(\"Browse\", "
+                        + "\"Activated the existing repository catalog.\");\n            return null;",
                 "Reopening the command focuses the current catalog instead of creating a second controller view");
         assertions += sourceContains(controller,
                 "HandlerUtil.getActiveWorkbenchWindow(event);\n        Shell shell = workbenchWindow == null",
@@ -96,6 +98,14 @@ public final class CatalogRegressionTests {
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
                 "folder.setItems(folders.stream().map(RepositoryTemplateFolder::name)",
                 "Repository creation offers every root-level template folder");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
+                "WorkspaceService.normalizeRepositoryName(name.getText())",
+                "Human-entered repository names are normalized before submitting to GitHub");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
+                "namePreview.setText(normalized.isBlank() ? \"(enter repository name)\" : normalized);",
+                "The generated GitHub repository name is previewed in the form");
         assertions += sourceContains(controller, "if (current != null) current.cancel();\n        if (task != null) task.cancel(true);",
                 "Closing the catalog cancels active work without leaving old callbacks live");
         assertions += sourceContains(controller, "worker.shutdownNow();",
@@ -105,8 +115,10 @@ public final class CatalogRegressionTests {
                 "A reused Eclipse handler obtains a fresh worker after reopening");
         assertions += sourceContains(controller, "if (current != null) current.cancel();\n        if (task != null) {\n            task.cancel(true);",
                 "Cancel propagates to both operation token and active Future");
-        assertions += sourceContains(view, "protected org.eclipse.swt.widgets.Control createButtonBar(Composite parent) {\n        return null;",
-                "Redundant bottom dialog button bar is removed");
+        assertions += sourceContains(view, "protected org.eclipse.swt.widgets.Control createButtonBar(Composite parent)",
+                "Repository catalog customizes the bottom button bar");
+        assertions += sourceContains(view, "Dialog.getImage(Dialog.DLG_IMG_HELP)",
+                "Repository catalog help icon opens the diagnostic log");
         assertions += sourceContains(view, "cancelButton.setVisible(false);",
                 "Cancel is hidden outside a cancelable operation");
         assertions += sourceContains(view, "if (busy) return;\n                if (listener == null)",
@@ -119,6 +131,16 @@ public final class CatalogRegressionTests {
                 "Repository catalog uses a single card column");
         assertions += sourceContains(view, "new GridLayout(3, false)",
                 "Repository cards use a horizontal three-section layout");
+        assertions += sourceContains(view, "Dialog.getImage(Dialog.DLG_IMG_HELP)",
+                "Browse Repositories exposes the log through a help icon in the lower-left button bar");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "Dialog.getImage(Dialog.DLG_IMG_HELP)",
+                "Management Repositories exposes the log through a help icon in the lower-left button bar");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/PluginLogDialog.java"),
+                "SWT.MULTI | SWT.BORDER | SWT.READ_ONLY | SWT.V_SCROLL | SWT.H_SCROLL",
+                "View Log displays all persisted trace lines in a scrollable multiline field");
         assertions += sourceContains(view, "String placeholder = \"Preview unavailable\";",
                 "Missing thumbnails show a clear, neutral placeholder message");
         if (view.contains("event.gc.drawLine(")) {

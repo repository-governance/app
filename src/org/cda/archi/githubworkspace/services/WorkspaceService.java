@@ -166,6 +166,12 @@ public final class WorkspaceService {
         }
     }
 
+    /** Converts a human-entered repository title into a URL-safe GitHub repository name. */
+    public static String normalizeRepositoryName(String value) {
+        if (value == null) return "";
+        return value.strip().replaceAll("\\s+", "-");
+    }
+
     public static void validatePlanIdSyntax(String planId) {
         if (planId == null || !planId.matches("D-[0-9]+")) {
             throw new IllegalArgumentException("Plan ID must match D-[0-9]+ (for example, D-09999).");

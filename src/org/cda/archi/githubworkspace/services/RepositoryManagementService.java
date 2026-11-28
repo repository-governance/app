@@ -100,7 +100,7 @@ public final class RepositoryManagementService {
         progress.accept("Creating repository in " + organization + "...");
         String createBody = "{\"name\":" + quote(repositoryName)
                 + ",\"description\":" + quote(description == null ? "" : description.trim())
-                + ",\"private\":" + isPrivate + ",\"auto_init\":false}";
+                + ",\"private\":" + isPrivate + ",\"auto_init\":true}";
         RestResponse createdResponse = api.post(
                 URI.create(RestClient.API_ROOT + "/orgs/" + encodeSegment(organization) + "/repos"),
                 session.tokenForRequest(), createBody, cancellation);
@@ -115,6 +115,12 @@ public final class RepositoryManagementService {
         GitHubRepository created = parseCreatedRepository(createdResponse);
         try {
             String createdPath = encodePath(created.getFullName());
+            String branch = created.getDefaultBranch();
+            if (branch.isBlank()) {
+                throw new IOException("GitHub initialized the repository without reporting its default branch.");
+            }
+            progress.accept("Reading the initial repository version...");
+            InitialCommit initial = readInitialCommit(session, createdPath, branch, cancellation);
             List<CreatedFile> createdFiles = new ArrayList<>(files.size());
             for (int index = 0; index < files.size(); index++) {
                 cancellation.throwIfCancelled();
@@ -129,14 +135,15 @@ public final class RepositoryManagementService {
             }
             cancellation.throwIfCancelled();
             progress.accept("Building the initial repository version...");
-            String treeBody = treeBody(createdFiles);
+            String treeBody = treeBody(createdFiles, initial.treeSha());
             RestResponse treeResponse = api.post(URI.create(RestClient.API_ROOT
                     + "/repos/" + createdPath + "/git/trees"), session.tokenForRequest(), treeBody, cancellation);
             if (treeResponse.statusCode() != 201) throw ApiErrors.from(treeResponse, false);
             String treeSha = responseSha(treeResponse, "tree");
 
             String commitBody = "{\"message\":" + quote("Create repository from " + folder.name() + " template")
-                    + ",\"tree\":" + quote(treeSha) + ",\"parents\":[]}";
+                    + ",\"tree\":" + quote(treeSha) + ",\"parents\":["
+                    + quote(initial.commitSha()) + "]}";
             RestResponse commitResponse = api.post(URI.create(RestClient.API_ROOT
                     + "/repos/" + createdPath + "/git/commits"), session.tokenForRequest(),
                     commitBody, cancellation);
@@ -145,11 +152,11 @@ public final class RepositoryManagementService {
 
             cancellation.throwIfCancelled();
             progress.accept("Publishing the initial branch...");
-            String refBody = "{\"ref\":" + quote("refs/heads/" + metadata.defaultBranch())
-                    + ",\"sha\":" + quote(commitSha) + "}";
-            RestResponse refResponse = api.post(URI.create(RestClient.API_ROOT
-                    + "/repos/" + createdPath + "/git/refs"), session.tokenForRequest(), refBody, cancellation);
-            if (refResponse.statusCode() != 201) throw ApiErrors.from(refResponse, false);
+            String refBody = "{\"sha\":" + quote(commitSha) + ",\"force\":false}";
+            RestResponse refResponse = api.patch(URI.create(RestClient.API_ROOT
+                    + "/repos/" + createdPath + "/git/refs/heads/" + encodeSegment(branch)),
+                    session.tokenForRequest(), refBody, cancellation);
+            if (refResponse.statusCode() != 200) throw ApiErrors.from(refResponse, false);
             return created;
         } catch (java.util.concurrent.CancellationException ex) {
             throw ex;
@@ -221,7 +228,8 @@ public final class RepositoryManagementService {
                 if (!"base64".equalsIgnoreCase(JsonObjects.string(blob, "encoding"))) {
                     throw new IOException("GitHub returned an unsupported template file encoding.");
                 }
-                byte[] bytes = Base64.getMimeDecoder().decode(JsonObjects.string(blob, "content"));
+                // Empty files are valid Git blobs and are represented by an empty Base64 string.
+                byte[] bytes = Base64.getMimeDecoder().decode(JsonObjects.stringOrEmpty(blob, "content"));
                 totalBytes += bytes.length;
                 if (totalBytes > MAX_TEMPLATE_BYTES) {
                     java.util.Arrays.fill(bytes, (byte) 0);
@@ -275,6 +283,38 @@ public final class RepositoryManagementService {
         }
     }
 
+    private InitialCommit readInitialCommit(GitHubSession session, String repositoryPath, String branch,
+            CancellationToken cancellation) throws IOException, InterruptedException {
+        URI refUri = URI.create(RestClient.API_ROOT + "/repos/" + repositoryPath
+                + "/git/ref/heads/" + encodeSegment(branch));
+        RestResponse refResponse = api.get(refUri, session.tokenForRequest(), cancellation);
+        if (refResponse.statusCode() != 200) throw ApiErrors.from(refResponse, false);
+
+        String commitSha;
+        try {
+            Map<String, Object> ref = JsonObjects.object(JsonParser.parse(refResponse.body()), "initial branch ref");
+            Map<String, Object> object = JsonObjects.object(ref.get("object"), "initial branch object");
+            if (!"commit".equals(JsonObjects.string(object, "type"))) {
+                throw new IllegalArgumentException("The default branch does not point to a commit.");
+            }
+            commitSha = JsonObjects.string(object, "sha");
+        } catch (IllegalArgumentException | ArithmeticException ex) {
+            throw new IOException("GitHub returned invalid initial branch data.");
+        }
+
+        URI commitUri = URI.create(RestClient.API_ROOT + "/repos/" + repositoryPath
+                + "/git/commits/" + encodeSegment(commitSha));
+        RestResponse commitResponse = api.get(commitUri, session.tokenForRequest(), cancellation);
+        if (commitResponse.statusCode() != 200) throw ApiErrors.from(commitResponse, false);
+        try {
+            Map<String, Object> commit = JsonObjects.object(JsonParser.parse(commitResponse.body()), "initial commit");
+            Map<String, Object> tree = JsonObjects.object(commit.get("tree"), "initial commit tree");
+            return new InitialCommit(commitSha, JsonObjects.string(tree, "sha"));
+        } catch (IllegalArgumentException | ArithmeticException ex) {
+            throw new IOException("GitHub returned invalid initial commit data.");
+        }
+    }
+
     private static GitHubRepository parseCreatedRepository(RestResponse response) throws IOException {
         try {
             return GitHubRepositoryService.parseRepository(
@@ -293,14 +333,18 @@ public final class RepositoryManagementService {
         }
     }
 
-    private static String treeBody(List<CreatedFile> files) {
-        StringBuilder body = new StringBuilder("{\"tree\":[");
+    private static String treeBody(List<CreatedFile> files, String baseTreeSha) {
+        StringBuilder body = new StringBuilder("{\"base_tree\":").append(quote(baseTreeSha)).append(",\"tree\":[");
         for (int i = 0; i < files.size(); i++) {
             if (i > 0) body.append(',');
             CreatedFile file = files.get(i);
             body.append("{\"path\":").append(quote(file.path()))
                     .append(",\"mode\":").append(quote(file.mode()))
                     .append(",\"type\":\"blob\",\"sha\":").append(quote(file.sha())).append('}');
+        }
+        if (files.stream().noneMatch(file -> file.path().equals("README.md"))) {
+            if (!files.isEmpty()) body.append(',');
+            body.append("{\"path\":\"README.md\",\"sha\":null}");
         }
         return body.append("]}").toString();
     }
@@ -370,6 +414,7 @@ public final class RepositoryManagementService {
     }
 
     private record RepositoryMetadata(String defaultBranch) { }
+    private record InitialCommit(String commitSha, String treeSha) { }
     private record TemplateFile(String path, String mode, byte[] bytes) { }
     private record CreatedFile(String path, String mode, String sha) { }
 }

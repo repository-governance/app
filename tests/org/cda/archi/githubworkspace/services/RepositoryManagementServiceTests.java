@@ -23,7 +23,7 @@ public final class RepositoryManagementServiceTests {
         testTemplateFolderListingAndCopy();
         testUnsafeTemplateFilesAreRejectedBeforeRemoteCreation();
         testTemplateRepositoryValidation();
-        return 11;
+        return 12;
     }
 
     private static void testOrganizationRepositoryListing() throws Exception {
@@ -55,14 +55,23 @@ public final class RepositoryManagementServiceTests {
                     false, new CancellationToken(), progress::add);
             require(created.getFullName().equals("target-org/SBB-010001"),
                     "The new repository is created inside the configured organization");
-            require(api.postRequests.size() == 5, "Creation posts repository, blob, tree, commit and initial ref");
+            require(api.postRequests.size() == 5 && api.patchRequests.size() == 1,
+                    "Creation posts repository, blobs, tree and commit, then advances the initialized ref");
             require(api.postRequests.get(0).body().contains("\"private\":false")
-                    && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001\""),
-                    "The repository name and selected visibility are sent to GitHub");
-            require(api.postRequests.get(2).body().contains("\"path\":\"source/design.archimate\""),
-                    "Only the chosen root folder's content is added at the new repository root");
-            require(api.postRequests.get(4).body().contains("\"ref\":\"refs/heads/master\""),
-                    "The initial branch name follows the template repository default branch");
+                    && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001\"")
+                    && api.postRequests.get(0).body().contains("\"auto_init\":true"),
+                    "Repository creation initializes GitHub's default branch before writing Git objects");
+            require(api.postRequests.get(3).body().contains("\"base_tree\":\"initial-tree\"")
+                    && api.postRequests.get(3).body().contains("\"path\":\"source/design.archimate\"")
+                    && api.postRequests.get(3).body().contains("\"path\":\".gitkeep\"")
+                    && api.postRequests.get(3).body().contains("\"path\":\"README.md\",\"sha\":null"),
+                    "Template files extend the initial tree and remove GitHub's generated README");
+            require(api.postRequests.get(4).body().contains("\"parents\":[\"initial-commit\"]"),
+                    "The template commit retains the auto-initialization commit as its parent");
+            require(api.patchRequests.get(0).uri().getPath()
+                    .equals("/repos/target-org/SBB-010001/git/refs/heads/master")
+                    && api.patchRequests.get(0).body().contains("\"force\":false"),
+                    "The initialized default branch is advanced safely to the template commit");
             require(progress.stream().anyMatch(item -> item.contains("Publishing")),
                     "The create flow reports progress through initial publication");
         } finally {
@@ -117,6 +126,7 @@ public final class RepositoryManagementServiceTests {
 
     private static final class RecordingApi implements GitHubApiClient {
         private final List<Posted> postRequests = new ArrayList<>();
+        private final List<Posted> patchRequests = new ArrayList<>();
         private boolean unsafeSymlink;
 
         @Override
@@ -143,12 +153,24 @@ public final class RepositoryManagementServiceTests {
                 return response(200, "{\"truncated\":false,\"tree\":["
                         + "{\"path\":\"source\",\"mode\":\"040000\",\"type\":\"tree\",\"sha\":\"source-tree\"},"
                         + "{\"path\":\"source/design.archimate\",\"mode\":\"" + mode
-                        + "\",\"type\":\"blob\",\"sha\":\"template-blob\"}]}");
+                        + "\",\"type\":\"blob\",\"sha\":\"template-blob\"},"
+                        + "{\"path\":\".gitkeep\",\"mode\":\"100644\",\"type\":\"blob\","
+                        + "\"sha\":\"empty-blob\"}]}");
             }
             if (path.equals("/repos/source/templates/git/blobs/template-blob")) {
                 String content = Base64.getEncoder().encodeToString(
                         "template model".getBytes(StandardCharsets.UTF_8));
                 return response(200, "{\"encoding\":\"base64\",\"content\":\"" + content + "\"}");
+            }
+            if (path.equals("/repos/source/templates/git/blobs/empty-blob")) {
+                return response(200, "{\"encoding\":\"base64\",\"content\":\"\"}");
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/ref/heads/master")) {
+                return response(200, "{\"ref\":\"refs/heads/master\",\"object\":"
+                        + "{\"sha\":\"initial-commit\",\"type\":\"commit\"}}");
+            }
+            if (path.equals("/repos/target-org/SBB-010001/git/commits/initial-commit")) {
+                return response(200, "{\"sha\":\"initial-commit\",\"tree\":{\"sha\":\"initial-tree\"}}");
             }
             throw new AssertionError("Unexpected API GET " + uri);
         }
@@ -162,7 +184,7 @@ public final class RepositoryManagementServiceTests {
                 return response(201, repositoryJson("target-org/SBB-010001"));
             }
             if (path.equals("/repos/target-org/SBB-010001/git/blobs")) {
-                return response(201, "{\"sha\":\"target-blob\"}");
+                return response(201, "{\"sha\":\"target-blob-" + postRequests.size() + "\"}");
             }
             if (path.equals("/repos/target-org/SBB-010001/git/trees")) {
                 return response(201, "{\"sha\":\"target-tree\"}");
@@ -172,6 +194,16 @@ public final class RepositoryManagementServiceTests {
             }
             if (path.equals("/repos/target-org/SBB-010001/git/refs")) return response(201, "{}");
             throw new AssertionError("Unexpected API POST " + uri);
+        }
+
+        @Override
+        public RestResponse patch(URI uri, String token, String body, CancellationToken cancellation) {
+            cancellation.throwIfCancelled();
+            patchRequests.add(new Posted(uri, body));
+            if (uri.getPath().equals("/repos/target-org/SBB-010001/git/refs/heads/master")) {
+                return response(200, "{\"ref\":\"refs/heads/master\"}");
+            }
+            throw new AssertionError("Unexpected API PATCH " + uri);
         }
 
         private static String repositoryJson(String fullName) {

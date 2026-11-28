@@ -6,9 +6,13 @@ import java.util.List;
 
 import org.cda.archi.githubworkspace.models.GitHubRepository;
 import org.cda.archi.githubworkspace.models.RepositoryTemplateFolder;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
+import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.accessibility.AccessibleAdapter;
+import org.eclipse.swt.accessibility.AccessibleEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -101,7 +105,6 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         create.addListener(SWT.Selection, event -> {
             if (listener != null) listener.requestCreate();
         });
-
         repositories = new Table(content, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE);
         repositories.setHeaderVisible(true);
         repositories.setLinesVisible(true);
@@ -169,8 +172,35 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     }
 
     @Override
-    protected void createButtonsForButtonBar(Composite parent) {
-        createButton(parent, IDialogConstants.CLOSE_ID, "Close", false);
+    protected Control createButtonBar(Composite parent) {
+        Composite bar = new Composite(parent, SWT.NONE);
+        bar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridLayout layout = new GridLayout(2, false);
+        layout.marginWidth = convertHorizontalDLUsToPixels(IDialogConstants.HORIZONTAL_MARGIN);
+        layout.marginHeight = convertVerticalDLUsToPixels(IDialogConstants.VERTICAL_MARGIN);
+        layout.horizontalSpacing = convertHorizontalDLUsToPixels(IDialogConstants.HORIZONTAL_SPACING);
+        bar.setLayout(layout);
+
+        Button help = new Button(bar, SWT.PUSH);
+        Image helpImage = Dialog.getImage(Dialog.DLG_IMG_HELP);
+        if (helpImage != null) help.setImage(helpImage);
+        else help.setText("?");
+        help.setToolTipText("View Log");
+        help.getAccessible().addAccessibleListener(new AccessibleAdapter() {
+            @Override public void getName(AccessibleEvent event) { event.result = "View Log"; }
+        });
+        help.addListener(SWT.Selection, event -> {
+            PluginLog.info("Repository Management", "Opened the log viewer.");
+            new PluginLogDialog(getShell()).open();
+        });
+        help.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false));
+
+        Composite spacer = new Composite(bar, SWT.NONE);
+        spacer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+
+        Button close = createButton(bar, IDialogConstants.CLOSE_ID, "Close", false);
+        close.setLayoutData(new GridData(SWT.END, SWT.CENTER, false, false));
+        return bar;
     }
 
     @Override

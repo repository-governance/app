@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.cda.archi.githubworkspace.clients.RestClient;
 import org.cda.archi.githubworkspace.infrastructure.CancellationToken;
 import org.cda.archi.githubworkspace.infrastructure.CatalogWorker;
+import org.cda.archi.githubworkspace.infrastructure.PluginLog;
 import org.cda.archi.githubworkspace.models.AuthenticationStatus;
 import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.models.GitHubOrganization;
@@ -70,6 +71,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
     public Object execute(ExecutionEvent event) throws ExecutionException {
         if (view != null && view.getShell() != null && !view.getShell().isDisposed()) {
             view.getShell().forceActive();
+            PluginLog.info("Browse", "Activated the existing repository catalog.");
             return null;
         }
         org.eclipse.ui.IWorkbenchWindow workbenchWindow = HandlerUtil.getActiveWorkbenchWindow(event);
@@ -82,6 +84,8 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
         view.create();
         view.getShell().setSize(1060, 760);
         view.centerOnParent();
+        PluginLog.info("Browse", "Opened repository catalog for "
+                + preferences.getOrganization() + " with topic " + preferences.getTopic() + ".");
         initialize();
         view.open();
         return null;
@@ -93,6 +97,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void connect() {
+        PluginLog.info("Authentication", "Starting Git credential inspection and GitHub authentication.");
         submit("Authenticating with the local Git credential helper...", token -> {
             String organization = preferences.getOrganization();
             String topic = preferences.getTopic();
@@ -107,6 +112,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             GitHubSession authenticated = authentication.authenticate(configuration, token);
             token.throwIfCancelled();
             session = authenticated;
+            PluginLog.info("Authentication", "Authenticated as " + authenticated.getUser().getLogin() + ".");
             try {
                 preferences.saveLastAccount(authenticated.getUser().getLogin());
             } catch (org.osgi.service.prefs.BackingStoreException ex) {
@@ -148,6 +154,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void cancel() {
+        PluginLog.info("Browse", "Cancellation requested.");
         CancellationToken current = cancellation;
         Future<?> task = activeTask;
         if (current != null) current.cancel();
@@ -164,10 +171,14 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void cloneRepository(GitHubRepository repository, String planId) {
+        PluginLog.info("Clone", "Preparing local branch " + planId + " for " + repository.getFullName() + ".");
         long taskGeneration = generation;
         startPlanOperation("Preparing " + planId + "...", token -> {
             Path model = repositories.preparePlan(repository, planId, token,
-                    message -> ui(taskGeneration, () -> view.showProgress(message)));
+                    message -> {
+                        PluginLog.info("Clone", message);
+                        ui(taskGeneration, () -> view.showProgress(message));
+                    });
             token.throwIfCancelled();
             openModelOnUi(model, token, taskGeneration);
         });
@@ -175,6 +186,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void openModel(GitHubRepository repository, String planId) {
+        PluginLog.info("Open Model", "Opening local branch " + planId + " for " + repository.getFullName() + ".");
         long taskGeneration = generation;
         startPlanOperation("Validating local plan " + planId + "...", token -> {
             Path model = repositories.existingPlanModel(repository, planId, token);
@@ -194,6 +206,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
                 repositories.openModel(model);
                 view.closeAfterModelOpened();
             } catch (Exception ex) {
+                PluginLog.error("Open Model", "Archi could not open the local model.", ex);
                 view.showError(userFacingError(ex));
             } finally {
                 finishOperation(token);
@@ -208,6 +221,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             try {
                 repositories.openInBrowser(repository);
             } catch (IOException ex) {
+                PluginLog.error("Browse", "Could not open the repository in a browser.", ex);
                 ui(taskGeneration, () -> view.showError(ex.getMessage()));
             }
         });
@@ -222,7 +236,9 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
                 ui(taskGeneration, () -> view.showLocalPlans(repository, plans));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Repository Scan", "Local workspace scan was interrupted.", ex);
             } catch (IOException ex) {
+                PluginLog.error("Repository Scan", "Could not inspect local branch workspaces.", ex);
                 ui(taskGeneration, () -> view.showError(ex.getMessage()));
             }
         });
@@ -241,8 +257,12 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
                 ui(taskGeneration, () -> view.showThumbnail(repository, result));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Thumbnail", "Thumbnail request was interrupted for "
+                        + repository.getFullName() + ".", ex);
                 java.util.Arrays.fill(bytes, (byte) 0);
             } catch (Exception ex) {
+                PluginLog.warn("Thumbnail", "Thumbnail could not be loaded for "
+                        + repository.getFullName() + ".", ex);
                 java.util.Arrays.fill(bytes, (byte) 0);
                 ui(taskGeneration, () -> view.showThumbnail(repository, new byte[0]));
             }
@@ -251,6 +271,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     @Override
     public void closed() {
+        PluginLog.info("Browse", "Closed repository catalog.");
         RepositoryBrowserView closingView = view;
         generation++;
         CancellationToken current = cancellation;
@@ -272,9 +293,11 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     private void searchRepositories(GitHubSession authenticated, String organization, String topic,
             CancellationToken token) throws IOException, InterruptedException {
+        PluginLog.info("Repository Search", "Searching " + organization + " repositories for topic " + topic + ".");
         long taskGeneration = generation;
         thumbnailRequests.clear();
         RepositorySearchResult result = repositories.search(authenticated, organization, topic, token);
+        PluginLog.info("Repository Search", "GitHub returned " + result.getRepositories().size() + " repositories.");
         token.throwIfCancelled();
         ui(taskGeneration, () -> {
             view.showRepositories(result);
@@ -291,6 +314,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     private void startPlanOperation(String message, Operation operation) {
         if (!busy.compareAndSet(false, true)) return;
+        PluginLog.info("Workspace", message);
         CancellationToken token = new CancellationToken();
         long taskGeneration = generation;
         AtomicBoolean started = new AtomicBoolean();
@@ -302,17 +326,20 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             try {
                 operation.run(token);
             } catch (CancellationException ex) {
+                PluginLog.info("Workspace", "Operation cancelled.");
                 ui(taskGeneration, () -> {
                     view.showCancelled();
                     finishOperation(token);
                 });
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Workspace", "Operation interrupted.", ex);
                 ui(taskGeneration, () -> {
                     view.showCancelled();
                     finishOperation(token);
                 });
             } catch (Exception ex) {
+                PluginLog.error("Workspace", "Operation failed.", ex);
                 ui(taskGeneration, () -> {
                     view.showError(userFacingError(ex));
                     finishOperation(token);
@@ -323,6 +350,7 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
 
     private void submit(String message, Operation operation) {
         if (!busy.compareAndSet(false, true)) return;
+        PluginLog.info("Catalog", message);
         CancellationToken token = new CancellationToken();
         long taskGeneration = generation;
         AtomicBoolean started = new AtomicBoolean();
@@ -334,11 +362,14 @@ public final class GitHubWorkspaceController extends AbstractHandler implements 
             try {
                 operation.run(token);
             } catch (CancellationException ex) {
+                PluginLog.info("Catalog", "Operation cancelled.");
                 ui(taskGeneration, view::showCancelled);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
+                PluginLog.warn("Catalog", "Operation interrupted.", ex);
                 ui(taskGeneration, view::showCancelled);
             } catch (Exception ex) {
+                PluginLog.error("Catalog", "Operation failed.", ex);
                 String errorMessage = userFacingError(ex);
                 ui(taskGeneration, () -> {
                     if (session == null) {

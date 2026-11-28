@@ -27,6 +27,7 @@ final class CreateRepositoryDialog extends TitleAreaDialog {
     private final Listener listener;
     private Combo folder;
     private Text name;
+    private Label namePreview;
     private Text description;
     private Button privateRepository;
 
@@ -57,6 +58,13 @@ final class CreateRepositoryDialog extends TitleAreaDialog {
         name = new Text(content, SWT.BORDER);
         name.setMessage("solution-block-name");
         name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        name.addModifyListener(event -> updateNamePreview());
+
+        new Label(content, SWT.NONE).setText("GitHub repository name:");
+        namePreview = new Label(content, SWT.WRAP);
+        namePreview.setText("(enter repository name)");
+        namePreview.setToolTipText("Spaces are converted to hyphens when the repository is created.");
+        namePreview.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         new Label(content, SWT.NONE).setText("Description:");
         description = new Text(content, SWT.BORDER);
@@ -88,15 +96,28 @@ final class CreateRepositoryDialog extends TitleAreaDialog {
             setErrorMessage("Choose a template folder.");
             return;
         }
-        String repositoryName = name.getText().trim();
+        String repositoryName = WorkspaceService.normalizeRepositoryName(name.getText());
         try {
             WorkspaceService.validateRepositoryName(repositoryName);
         } catch (IllegalArgumentException ex) {
             setErrorMessage(ex.getMessage());
             return;
         }
+        if (!name.getText().equals(repositoryName)) name.setText(repositoryName);
         listener.create(folder.getText(), repositoryName, description.getText().trim(),
                 privateRepository.getSelection());
         super.okPressed();
+    }
+
+    private void updateNamePreview() {
+        if (namePreview == null || namePreview.isDisposed()) return;
+        String normalized = WorkspaceService.normalizeRepositoryName(name.getText());
+        try {
+            WorkspaceService.validateRepositoryName(normalized);
+            namePreview.setText(normalized.isBlank() ? "(enter repository name)" : normalized);
+        } catch (IllegalArgumentException ex) {
+            namePreview.setText("Unsupported characters in repository name");
+        }
+        namePreview.getParent().layout(true, true);
     }
 }

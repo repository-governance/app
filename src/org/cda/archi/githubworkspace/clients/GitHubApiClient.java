@@ -14,4 +14,9 @@ public interface GitHubApiClient {
             throws IOException, InterruptedException {
         throw new IOException("This GitHub API client does not support write requests.");
     }
+
+    default RestResponse patch(URI uri, String bearerToken, String jsonBody, CancellationToken cancellation)
+            throws IOException, InterruptedException {
+        throw new IOException("This GitHub API client does not support write requests.");
+    }
 }
