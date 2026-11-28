@@ -13,7 +13,7 @@ public record TableSchema(String schemaVersion, String name, String description,
         schemaVersion = schemaVersion == null || schemaVersion.isBlank() ? "1.0" : schemaVersion;
         if (!"1.0".equals(schemaVersion)) throw new IllegalArgumentException("Unsupported schema version.");
         if (!isSafeTableName(name)) throw new IllegalArgumentException(
-                "Table names must use lowercase letters, digits, and hyphens (1–48 characters).");
+                "Table names must be safe identifiers of 1–48 letters, digits, underscores, or hyphens.");
         description = description == null ? "" : description.strip();
         columns = List.copyOf(columns == null ? List.of() : columns);
         if (columns.isEmpty() || columns.size() > MAX_COLUMNS) {
@@ -39,7 +39,7 @@ public record TableSchema(String schemaVersion, String name, String description,
     }
 
     public static boolean isSafeTableName(String name) {
-        return name != null && name.matches("[a-z][a-z0-9-]{0,47}") && !name.contains("..");
+        return name != null && name.matches("[A-Za-z_][A-Za-z0-9_-]{0,47}");
     }
 
     public ColumnDefinition primaryKeyColumn() {

@@ -150,7 +150,8 @@ public final class CreateTableDialog extends TitleAreaDialog {
                 throw new IllegalArgumentException("Table Name is required.");
             }
             if (!TableSchema.isSafeTableName(name.getText().trim())) {
-                throw new IllegalArgumentException("Use lowercase letters, digits, and hyphens only.");
+                throw new IllegalArgumentException(
+                        "Use 1–48 letters, digits, underscores, or hyphens; begin with a letter or underscore.");
             }
             if (existingNames.contains(name.getText().trim().toLowerCase(java.util.Locale.ROOT))) {
                 throw new IllegalArgumentException("A table with this name already exists.");

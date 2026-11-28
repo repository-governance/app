@@ -51,6 +51,8 @@ tables/{table-name}/records/{safe-primary-key}.json
 
 Each record is a separate UTF-8 JSON document. Numeric and boolean fields are stored as JSON numbers and booleans; empty optional values are JSON `null`. Primary keys are encoded using URL-safe Base64 in filenames so they cannot introduce paths or traversal. Table creation and record CRUD commit through GitHub's Contents API with the repository branch and fetched SHA. A 409/422 conflict is reported for refresh/retry rather than overwritten. If GitHub identifies a repository as empty, the first explicit **Create Table** action tries Contents API first and can initialize its first branch using create-only Git Database tree/commit/ref endpoints; opening the window never writes data.
 
+Table names may contain uppercase and lowercase letters, digits, underscores, and hyphens; they must start with a letter or underscore and are limited to 48 characters. Names are unique case-insensitively.
+
 Limitations: schemas cannot be edited or deleted after creation; relationships, bulk operations, and migrations are not implemented. Data Manager supports up to 200 table entries, caps each record file at 256 KiB and each table at 999 records, and rejects directory listings at the Contents API 1,000-entry boundary instead of presenting a potentially partial result. Public data repositories produce a warning; do not store sensitive or personal data there. GitHub's API can return 404 for inaccessible private resources as well as absent paths, so repository metadata and the default branch are checked first; for initialized repositories, root contents must also be readable before missing table/records paths are treated as absent.
 
 ### Local Workspace

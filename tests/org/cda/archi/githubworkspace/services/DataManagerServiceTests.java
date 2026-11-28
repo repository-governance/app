@@ -53,6 +53,11 @@ public final class DataManagerServiceTests {
         check(!DataRecordRepository.recordPath(schema, "x/../../secrets").contains("../"),
                 "Primary key path is Base64 URL-safe and traversal-proof");
         assertions += 4;
+        check(TableSchema.isSafeTableName("Architect_Reviews-2026")
+                && TableSchema.isSafeTableName("_Internal")
+                && !TableSchema.isSafeTableName("../escape"),
+                "Table names accept uppercase and underscores while rejecting path traversal");
+        assertions++;
 
         DataValidationService validation = new DataValidationService();
         Map<String, Object> typed = validation.validate(schema,
