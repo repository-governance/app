@@ -31,7 +31,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     public interface Listener {
         void refresh();
         void requestCreate();
-        void createFromTemplate(String folder, String name, String description, boolean isPrivate);
+        void createFromTemplate(String folder, String name, String description);
         void closed();
     }
 
@@ -150,8 +150,8 @@ public final class RepositoryManagementView extends TitleAreaDialog {
             return;
         }
         CreateRepositoryDialog dialog = new CreateRepositoryDialog(getShell(), folders,
-                (folder, name, description, isPrivate) -> {
-                    if (listener != null) listener.createFromTemplate(folder, name, description, isPrivate);
+                (folder, name, description) -> {
+                    if (listener != null) listener.createFromTemplate(folder, name, description);
                 });
         dialog.setBlockOnOpen(true);
         dialog.open();

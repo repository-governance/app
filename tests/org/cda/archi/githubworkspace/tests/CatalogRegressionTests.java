@@ -112,16 +112,24 @@ public final class CatalogRegressionTests {
                 "Management Repositories presents the organization list in a grid");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
-                "folder.setItems(folders.stream().map(RepositoryTemplateFolder::name)",
-                "Repository creation offers every root-level template folder");
+                "buildingBlock.setText(\"Building Block\");",
+                "Repository creation fields are grouped under Building Block");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
-                "WorkspaceService.normalizeRepositoryName(name.getText())",
-                "Human-entered repository names are normalized before submitting to GitHub");
+                "type.setItems(\"AM - Application Module\", \"SD - Service Domain\");",
+                "Building Block type offers the required AM and SD choices");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
-                "namePreview.setText(normalized.isBlank() ? \"(enter repository name)\" : normalized);",
-                "The generated GitHub repository name is previewed in the form");
+                "new Text(buildingBlock, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL)",
+                "Building Block description is a multiline text area");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
+                "WorkspaceService.buildingBlockRepositoryName(",
+                "Repository name combines validated code, type, and title");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/services/RepositoryManagementService.java"),
+                "+ \",\\\"private\\\":true,\\\"auto_init\\\":true}\"",
+                "Repositories created from the dialog are always private");
         assertions += sourceContains(controller, "if (current != null) current.cancel();\n        if (task != null) task.cancel(true);",
                 "Closing the catalog cancels active work without leaving old callbacks live");
         assertions += sourceContains(controller, "worker.shutdownNow();",

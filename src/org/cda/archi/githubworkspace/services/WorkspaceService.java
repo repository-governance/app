@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.text.Normalizer;
 import java.util.Comparator;
 import java.util.List;
 
@@ -170,6 +171,40 @@ public final class WorkspaceService {
     public static String normalizeRepositoryName(String value) {
         if (value == null) return "";
         return value.strip().replaceAll("\\s+", "-");
+    }
+
+    public static String buildingBlockRepositoryName(String code, String type, String title) {
+        validateBuildingBlockCode(code);
+        validateBuildingBlockType(type);
+        validateBuildingBlockTitle(title);
+        String titleSlug = Normalizer.normalize(title.strip(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("\\s+", "-");
+        String repositoryName = code + "-" + type + "-" + titleSlug;
+        validateRepositoryName(repositoryName);
+        return repositoryName;
+    }
+
+    public static void validateBuildingBlockCode(String code) {
+        if (code == null || !code.matches("SBB-[0-9]{7}")) {
+            throw new IllegalArgumentException("Code must use the format SBB-0099999.");
+        }
+    }
+
+    public static void validateBuildingBlockType(String type) {
+        if (!"AM".equals(type) && !"SD".equals(type)) {
+            throw new IllegalArgumentException("Choose AM - Application Module or SD - Service Domain.");
+        }
+    }
+
+    public static void validateBuildingBlockTitle(String title) {
+        if (!isValidBuildingBlockTitle(title)) {
+            throw new IllegalArgumentException("Title can contain letters and spaces only.");
+        }
+    }
+
+    public static boolean isValidBuildingBlockTitle(String title) {
+        return title != null && title.strip().matches("[\\p{L}\\p{M}]+(?: +[\\p{L}\\p{M}]+)*");
     }
 
     public static void validatePlanIdSyntax(String planId) {

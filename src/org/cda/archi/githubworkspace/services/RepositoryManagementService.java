@@ -95,7 +95,7 @@ public final class RepositoryManagementService {
 
     public GitHubRepository createFromTemplateFolder(GitHubSession session, String organization,
             String templateRepository, String folderName, String repositoryName, String description,
-            boolean isPrivate, CancellationToken cancellation, Consumer<String> progress)
+            CancellationToken cancellation, Consumer<String> progress)
             throws IOException, InterruptedException {
         WorkspaceService.validateOrganization(organization);
         WorkspaceService.validateRepositoryName(repositoryName);
@@ -109,7 +109,7 @@ public final class RepositoryManagementService {
         progress.accept("Creating repository in " + organization + "...");
         String createBody = "{\"name\":" + quote(repositoryName)
                 + ",\"description\":" + quote(description == null ? "" : description.trim())
-                + ",\"private\":" + isPrivate + ",\"auto_init\":true}";
+                + ",\"private\":true,\"auto_init\":true}";
         RestResponse createdResponse = api.post(
                 URI.create(RestClient.API_ROOT + "/orgs/" + encodeSegment(organization) + "/repos"),
                 session.tokenForRequest(), createBody, cancellation);

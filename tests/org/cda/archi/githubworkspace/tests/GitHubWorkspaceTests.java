@@ -93,6 +93,18 @@ public final class GitHubWorkspaceTests {
                     "Human-readable repository names are converted to hyphenated GitHub names");
             equal("SBB-010001", WorkspaceService.normalizeRepositoryName("SBB-010001"),
                     "Already-valid repository names are preserved");
+            equal("SBB-0099999-AM-Aplicacion-Nandu",
+                    WorkspaceService.buildingBlockRepositoryName("SBB-0099999", "AM", "Aplicación Ñandú"),
+                    "Building Block repository names combine code, type, and accent-normalized title");
+            WorkspaceService.validateBuildingBlockCode("SBB-0099999");
+            WorkspaceService.validateBuildingBlockType("SD");
+            WorkspaceService.validateBuildingBlockTitle("Área de Gestión");
+            expectThrows(IllegalArgumentException.class,
+                    () -> WorkspaceService.validateBuildingBlockCode("SBB-999"),
+                    "Building Block code must match the SBB seven-digit format");
+            expectThrows(IllegalArgumentException.class,
+                    () -> WorkspaceService.validateBuildingBlockTitle("Title 2"),
+                    "Building Block title rejects digits");
             WorkspaceService.validateOrganization("repository-governance");
             expectThrows(IllegalArgumentException.class,
                     () -> WorkspaceService.validateOrganization("../outside"), "Organization traversal is rejected");

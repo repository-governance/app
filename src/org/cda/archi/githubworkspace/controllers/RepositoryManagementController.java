@@ -115,13 +115,13 @@ public final class RepositoryManagementController extends AbstractHandler
     }
 
     @Override
-    public void createFromTemplate(String folder, String name, String description, boolean isPrivate) {
-        PluginLog.info("Repository Management", "Creating repository " + name + " from template folder " + folder
-                + " with visibility " + (isPrivate ? "private" : "public") + ".");
+    public void createFromTemplate(String folder, String name, String description) {
+        PluginLog.info("Repository Management", "Creating private repository " + name
+                + " from template folder " + folder + ".");
         submit("Preparing repository from template...", token -> {
             GitHubRepository created = management.createFromTemplateFolder(ensureSession(token),
                     preferences.getOrganization(), preferences.getTemplateRepository(), folder,
-                    name, description, isPrivate, token,
+                    name, description, token,
                     progress -> {
                         PluginLog.info("Repository Management", progress);
                         ui(generation, () -> view.setBusy(true, progress));

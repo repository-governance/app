@@ -9,10 +9,10 @@ import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
@@ -20,16 +20,16 @@ import org.eclipse.swt.widgets.Text;
 /** Captures the template folder and metadata for a new organization repository. */
 final class CreateRepositoryDialog extends TitleAreaDialog {
     interface Listener {
-        void create(String folder, String name, String description, boolean isPrivate);
+        void create(String folder, String name, String description);
     }
 
     private final List<RepositoryTemplateFolder> folders;
     private final Listener listener;
-    private Combo folder;
-    private Text name;
-    private Label namePreview;
+    private Combo template;
+    private Combo type;
+    private Text code;
+    private Text title;
     private Text description;
-    private Button privateRepository;
 
     CreateRepositoryDialog(Shell parent, List<RepositoryTemplateFolder> folders, Listener listener) {
         super(parent);
@@ -40,47 +40,58 @@ final class CreateRepositoryDialog extends TitleAreaDialog {
     }
 
     @Override
+    protected void configureShell(Shell shell) {
+        super.configureShell(shell);
+        shell.setText("GitHub Workspace");
+    }
+
+    @Override
     protected Control createDialogArea(Composite parent) {
         setTitle("Create Repository from Template");
-        setMessage("Choose a root folder from the configured template repository.");
+        setMessage("Enter the Building Block details and choose a template.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-        content.setLayout(new GridLayout(2, false));
+        content.setLayout(new GridLayout(1, false));
 
-        new Label(content, SWT.NONE).setText("Template folder:");
-        folder = new Combo(content, SWT.DROP_DOWN | SWT.READ_ONLY);
-        folder.setItems(folders.stream().map(RepositoryTemplateFolder::name).toArray(String[]::new));
-        if (!folders.isEmpty()) folder.select(0);
-        folder.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        Group buildingBlock = new Group(content, SWT.NONE);
+        buildingBlock.setText("Building Block");
+        buildingBlock.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        buildingBlock.setLayout(new GridLayout(2, false));
 
-        new Label(content, SWT.NONE).setText("New repository name:");
-        name = new Text(content, SWT.BORDER);
-        name.setMessage("solution-block-name");
-        name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        name.addModifyListener(event -> updateNamePreview());
+        new Label(buildingBlock, SWT.NONE).setText("Código:");
+        code = new Text(buildingBlock, SWT.BORDER);
+        code.setMessage("SBB-0099999");
+        code.setTextLimit(11);
+        code.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        new Label(content, SWT.NONE).setText("GitHub repository name:");
-        namePreview = new Label(content, SWT.WRAP);
-        namePreview.setText("(enter repository name)");
-        namePreview.setToolTipText("Spaces are converted to hyphens when the repository is created.");
-        namePreview.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        new Label(buildingBlock, SWT.NONE).setText("Tipo:");
+        type = new Combo(buildingBlock, SWT.DROP_DOWN | SWT.READ_ONLY);
+        type.setItems("AM - Application Module", "SD - Service Domain");
+        type.select(0);
+        type.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        new Label(content, SWT.NONE).setText("Description:");
-        description = new Text(content, SWT.BORDER);
+        new Label(buildingBlock, SWT.NONE).setText("Título:");
+        title = new Text(buildingBlock, SWT.BORDER);
+        title.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        title.addVerifyListener(event -> {
+            String candidate = title.getText().substring(0, event.start) + event.text
+                    + title.getText().substring(event.end);
+            event.doit = candidate.isEmpty() || WorkspaceService.isValidBuildingBlockTitle(candidate);
+        });
+
+        new Label(buildingBlock, SWT.NONE).setText("Descripción:");
+        description = new Text(buildingBlock, SWT.BORDER | SWT.MULTI | SWT.WRAP | SWT.V_SCROLL);
         description.setTextLimit(350);
-        description.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        GridData descriptionData = new GridData(SWT.FILL, SWT.FILL, true, true);
+        descriptionData.heightHint = 80;
+        description.setLayoutData(descriptionData);
 
-        Label visibilityLabel = new Label(content, SWT.NONE);
-        visibilityLabel.setText("Visibility:");
-        Composite visibility = new Composite(content, SWT.NONE);
-        visibility.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        visibility.setLayout(new GridLayout(2, false));
-        privateRepository = new Button(visibility, SWT.RADIO);
-        privateRepository.setText("Private");
-        privateRepository.setSelection(true);
-        Button publicRepository = new Button(visibility, SWT.RADIO);
-        publicRepository.setText("Public");
+        new Label(buildingBlock, SWT.NONE).setText("Plantilla:");
+        template = new Combo(buildingBlock, SWT.DROP_DOWN | SWT.READ_ONLY);
+        template.setItems(folders.stream().map(RepositoryTemplateFolder::name).toArray(String[]::new));
+        if (!folders.isEmpty()) template.select(0);
+        template.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         return area;
     }
 
@@ -92,32 +103,21 @@ final class CreateRepositoryDialog extends TitleAreaDialog {
 
     @Override
     protected void okPressed() {
-        if (folder.getSelectionIndex() < 0) {
-            setErrorMessage("Choose a template folder.");
+        if (template.getSelectionIndex() < 0) {
+            setErrorMessage("Choose a template.");
             return;
         }
-        String repositoryName = WorkspaceService.normalizeRepositoryName(name.getText());
+        String buildingBlockCode = code.getText().trim().toUpperCase(java.util.Locale.ROOT);
+        String buildingBlockType = type.getSelectionIndex() == 0 ? "AM" : "SD";
+        String repositoryName;
         try {
-            WorkspaceService.validateRepositoryName(repositoryName);
+            repositoryName = WorkspaceService.buildingBlockRepositoryName(
+                    buildingBlockCode, buildingBlockType, title.getText().trim());
         } catch (IllegalArgumentException ex) {
             setErrorMessage(ex.getMessage());
             return;
         }
-        if (!name.getText().equals(repositoryName)) name.setText(repositoryName);
-        listener.create(folder.getText(), repositoryName, description.getText().trim(),
-                privateRepository.getSelection());
+        listener.create(template.getText(), repositoryName, description.getText().trim());
         super.okPressed();
-    }
-
-    private void updateNamePreview() {
-        if (namePreview == null || namePreview.isDisposed()) return;
-        String normalized = WorkspaceService.normalizeRepositoryName(name.getText());
-        try {
-            WorkspaceService.validateRepositoryName(normalized);
-            namePreview.setText(normalized.isBlank() ? "(enter repository name)" : normalized);
-        } catch (IllegalArgumentException ex) {
-            namePreview.setText("Unsupported characters in repository name");
-        }
-        namePreview.getParent().layout(true, true);
     }
 }

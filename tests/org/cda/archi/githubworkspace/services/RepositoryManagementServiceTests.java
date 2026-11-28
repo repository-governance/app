@@ -53,14 +53,14 @@ public final class RepositoryManagementServiceTests {
 
             List<String> progress = new ArrayList<>();
             GitHubRepository created = service.createFromTemplateFolder(session, "target-org",
-                    "source/templates", "Architecture", "SBB-010001", "Created from a model template",
-                    false, new CancellationToken(), progress::add);
+                    "source/templates", "Architecture", "SBB-010001-AM-Arquitectura",
+                    "Created from a model template", new CancellationToken(), progress::add);
             require(created.getFullName().equals("target-org/SBB-010001"),
                     "The new repository is created inside the configured organization");
             require(api.postRequests.size() == 5 && api.patchRequests.size() == 1 && api.putRequests.size() == 1,
                     "Creation posts repository, blobs, tree and commit, advances its ref, and assigns the topic");
-            require(api.postRequests.get(0).body().contains("\"private\":false")
-                    && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001\"")
+            require(api.postRequests.get(0).body().contains("\"private\":true")
+                    && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001-AM-Arquitectura\"")
                     && api.postRequests.get(0).body().contains("\"auto_init\":true"),
                     "Repository creation initializes GitHub's default branch before writing Git objects");
             require(api.postRequests.get(3).body().contains("\"base_tree\":\"initial-tree\"")
@@ -92,7 +92,7 @@ public final class RepositoryManagementServiceTests {
         try {
             try {
                 service.createFromTemplateFolder(session, "target-org", "source/templates",
-                        "Architecture", "SBB-010002", "", true, new CancellationToken(), ignored -> { });
+                        "Architecture", "SBB-010002-AM-Test", "", new CancellationToken(), ignored -> { });
                 throw new AssertionError("Template symlinks must be rejected.");
             } catch (java.io.IOException expected) {
                 require(api.postRequests.isEmpty(), "Unsafe template entries are rejected before creating a repo");

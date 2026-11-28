@@ -59,7 +59,7 @@ The preference page uses Archi's native **Apply**, **Apply and Close**, **Cancel
 
 Choose **File → GitHub Workspace → Management Repositories** to view repositories tagged with the fixed `archimate` topic. The grid includes a Topic column alongside each repository's description, visibility, and default branch.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization, published together as its initial commit on the new repository's GitHub-default branch, and tagged with `archimate`.
+**Create Repository** presents a **Building Block** form for code (`SBB-` plus seven digits), type (`AM` or `SD`), alphabetic title, multiline description, and template. The GitHub repository name combines code, type, and a title slug; descriptions are saved to GitHub. Repositories are always private, receive the `archimate` topic, and contain the selected template folder at the root.
 
 Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, write Git objects, and manage repository topics. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 
@@ -71,7 +71,7 @@ The help icon in the lower-left corner of Browse Repositories and Management Rep
 
 Choose **File → GitHub Workspace → Management Repositories** to view repositories tagged with the fixed `archimate` topic. The grid includes a Topic column alongside each repository's description, visibility, and default branch.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization, published together as its initial commit on the new repository's GitHub-default branch, and tagged with `archimate`.
+**Create Repository** presents a **Building Block** form for code (`SBB-` plus seven digits), type (`AM` or `SD`), alphabetic title, multiline description, and template. The GitHub repository name combines code, type, and a title slug; descriptions are saved to GitHub. Repositories are always private, receive the `archimate` topic, and contain the selected template folder at the root.
 
 Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, write Git objects, and manage repository topics. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 
