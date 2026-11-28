@@ -58,6 +58,10 @@ public final class CatalogRegressionTests {
                 "Data Manager separates schema maintenance into its own tab");
         assertions += sourceContains(dataView, "toolItem(schemaToolbar, \"Edit Schema\"",
                 "Schema editing actions are contained in the Schema tab");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/CreateTableDialog.java"),
+                "grid.addListener(SWT.Selection, e -> validateForm());\n        redraw();",
+                "Opening an existing schema renders its loaded columns in the editor grid");
         assertions += sourceContains(dataController, "tables.update(owner, repository, branch, original, updated, schemaSha",
                 "Schema editing writes against the schema SHA to prevent lost concurrent updates");
         assertions += sourceContains(columnDialog, "Validate with regular expression",

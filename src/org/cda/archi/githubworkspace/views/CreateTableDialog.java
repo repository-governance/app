@@ -99,7 +99,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         action(buttons, "Move Down", () -> move(1));
         name.addModifyListener(e -> validateForm());
         grid.addListener(SWT.Selection, e -> validateForm());
-        validateForm();
+        redraw();
         return area;
     }
 
