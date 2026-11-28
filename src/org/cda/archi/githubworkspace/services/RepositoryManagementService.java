@@ -19,11 +19,12 @@ import org.cda.archi.githubworkspace.infrastructure.JsonParser;
 import org.cda.archi.githubworkspace.models.GitHubRepository;
 import org.cda.archi.githubworkspace.models.RepositoryTemplateFolder;
 
-/** Lists organization repositories and creates one from a selected folder in a template repository. */
+/** Lists default-topic organization repositories and creates one from a template folder. */
 public final class RepositoryManagementService {
     private static final int PAGE_SIZE = 100;
     private static final int MAX_TEMPLATE_FILES = 1000;
     private static final long MAX_TEMPLATE_BYTES = 25L * 1024 * 1024;
+    private static final String DEFAULT_TOPIC = PreferencesService.DEFAULT_TOPIC;
     private final GitHubApiClient api;
 
     public RepositoryManagementService(GitHubApiClient api) {
@@ -47,12 +48,20 @@ public final class RepositoryManagementService {
                     repositories.add(GitHubRepositoryService.parseRepository(
                             JsonObjects.object(entry, "organization repository")));
                 }
-                if (entries.size() < PAGE_SIZE) return List.copyOf(repositories);
+                if (entries.size() < PAGE_SIZE) {
+                    return repositories.stream()
+                            .filter(RepositoryManagementService::hasDefaultTopic).toList();
+                }
             } catch (IllegalArgumentException | ArithmeticException ex) {
                 throw new IOException("GitHub returned invalid organization repository data.");
             }
             if (page >= 100) throw new IOException("The organization repository list exceeded 10,000 entries.");
         }
+    }
+
+    private static boolean hasDefaultTopic(GitHubRepository repository) {
+        return repository.getTopics().stream()
+                .anyMatch(repositoryTopic -> DEFAULT_TOPIC.equalsIgnoreCase(repositoryTopic.trim()));
     }
 
     public List<RepositoryTemplateFolder> listTemplateFolders(GitHubSession session, String templateRepository,
@@ -113,8 +122,8 @@ public final class RepositoryManagementService {
         }
 
         GitHubRepository created = parseCreatedRepository(createdResponse);
+        String createdPath = encodePath(created.getFullName());
         try {
-            String createdPath = encodePath(created.getFullName());
             String branch = created.getDefaultBranch();
             if (branch.isBlank()) {
                 throw new IOException("GitHub initialized the repository without reporting its default branch.");
@@ -157,7 +166,6 @@ public final class RepositoryManagementService {
                     + "/repos/" + createdPath + "/git/refs/heads/" + encodeSegment(branch)),
                     session.tokenForRequest(), refBody, cancellation);
             if (refResponse.statusCode() != 200) throw ApiErrors.from(refResponse, false);
-            return created;
         } catch (java.util.concurrent.CancellationException ex) {
             throw ex;
         } catch (InterruptedException ex) {
@@ -170,6 +178,26 @@ public final class RepositoryManagementService {
                     + " was created, but GitHub could not finish copying the template folder: "
                     + safeMessage(ex) + " The new repository may be empty or incomplete.", ex);
         }
+        try {
+            cancellation.throwIfCancelled();
+            progress.accept("Assigning the default topic...");
+            RestResponse topicResponse = api.put(URI.create(RestClient.API_ROOT
+                    + "/repos/" + createdPath + "/topics"),
+                    session.tokenForRequest(), "{\"names\":[" + quote(DEFAULT_TOPIC) + "]}", cancellation);
+            if (topicResponse.statusCode() != 200) throw ApiErrors.from(topicResponse, false);
+        } catch (java.util.concurrent.CancellationException ex) {
+            throw new IOException("Repository " + created.getFullName()
+                    + " was created and the template copied, but assigning the default topic was cancelled.", ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Repository " + created.getFullName()
+                    + " was created and the template copied, but assigning the default topic was interrupted.", ex);
+        } catch (IOException | RuntimeException ex) {
+            throw new IOException("Repository " + created.getFullName()
+                    + " was created and the template copied, but GitHub could not assign topic "
+                    + DEFAULT_TOPIC + ": " + safeMessage(ex), ex);
+        }
+        return created;
     }
 
     private List<TemplateFile> loadTemplateFiles(GitHubSession session, String fullName,

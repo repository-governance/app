@@ -173,14 +173,20 @@ public final class GitHubWorkspaceTests {
                             });
             PreferencesService preferences = new PreferencesService(node);
             equal("repository-governance", preferences.getOrganization(), "Reference organization is default");
+            equal("https://github.com/repository-governance", preferences.getOrganizationUrl(),
+                    "Organization preference is presented as its GitHub URL");
             equal("archimate", preferences.getTopic(), "Reference repository topic is default");
+            equal("example-org", new GitHubOrganization("https://github.com/example-org/").getLogin(),
+                    "GitHub organization URLs normalize to API logins");
             equal("https://github.com/repository-governance/templates", preferences.getTemplateRepository(),
                     "The configured repository of root-level templates has a default");
             check(preferences.useDefaultWorkspace(), "Default workspace is enabled initially");
-            preferences.saveSearch("example-org", "architecture");
+            preferences.saveSearch("https://github.com/example-org/");
             preferences.saveTemplateRepository("https://github.com/example-org/templates");
             equal("example-org", preferences.getOrganization(), "Organization preference persists");
-            equal("architecture", preferences.getTopic(), "Topic preference persists");
+            equal("https://github.com/example-org", preferences.getOrganizationUrl(),
+                    "Organization URL is normalized and persists");
+            equal("archimate", preferences.getTopic(), "The default topic remains fixed");
             equal("https://github.com/example-org/templates", preferences.getTemplateRepository(),
                     "Template repository preference persists");
 

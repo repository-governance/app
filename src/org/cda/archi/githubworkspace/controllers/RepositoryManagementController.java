@@ -71,7 +71,7 @@ public final class RepositoryManagementController extends AbstractHandler
 
     @Override
     public void refresh() {
-        submit("Loading organization repositories...", token -> {
+        submit("Loading repositories tagged with " + PreferencesService.DEFAULT_TOPIC + "...", token -> {
             GitHubSession current = ensureSession(token);
             List<GitHubRepository> repositories = management.listOrganizationRepositories(
                     current, preferences.getOrganization(), token);

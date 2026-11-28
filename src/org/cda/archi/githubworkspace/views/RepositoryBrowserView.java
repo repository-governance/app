@@ -96,7 +96,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     @Override
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("Browse Repositories - GitHub Workspace");
+        shell.setText("GitHub Workspace");
         try (InputStream iconStream = RepositoryBrowserView.class.getResourceAsStream("/icons/github.png")) {
             if (iconStream != null) {
                 windowIcon = new Image(shell.getDisplay(), iconStream);

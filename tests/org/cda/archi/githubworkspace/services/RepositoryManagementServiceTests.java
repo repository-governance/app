@@ -23,7 +23,7 @@ public final class RepositoryManagementServiceTests {
         testTemplateFolderListingAndCopy();
         testUnsafeTemplateFilesAreRejectedBeforeRemoteCreation();
         testTemplateRepositoryValidation();
-        return 12;
+        return 13;
     }
 
     private static void testOrganizationRepositoryListing() throws Exception {
@@ -31,8 +31,10 @@ public final class RepositoryManagementServiceTests {
         try {
             List<GitHubRepository> repositories = new RepositoryManagementService(new RecordingApi())
                     .listOrganizationRepositories(session, "target-org", new CancellationToken());
-            require(repositories.size() == 1 && repositories.get(0).getName().equals("existing"),
-                    "Management lists repositories from the organization independently of topic search");
+            require(repositories.size() == 2
+                    && repositories.get(0).getName().equals("archimate-lowercase")
+                    && repositories.get(1).getName().equals("archimate-mixedcase"),
+                    "Management filters organization repositories to the fixed default topic");
         } finally {
             session.close();
         }
@@ -55,8 +57,8 @@ public final class RepositoryManagementServiceTests {
                     false, new CancellationToken(), progress::add);
             require(created.getFullName().equals("target-org/SBB-010001"),
                     "The new repository is created inside the configured organization");
-            require(api.postRequests.size() == 5 && api.patchRequests.size() == 1,
-                    "Creation posts repository, blobs, tree and commit, then advances the initialized ref");
+            require(api.postRequests.size() == 5 && api.patchRequests.size() == 1 && api.putRequests.size() == 1,
+                    "Creation posts repository, blobs, tree and commit, advances its ref, and assigns the topic");
             require(api.postRequests.get(0).body().contains("\"private\":false")
                     && api.postRequests.get(0).body().contains("\"name\":\"SBB-010001\"")
                     && api.postRequests.get(0).body().contains("\"auto_init\":true"),
@@ -72,6 +74,9 @@ public final class RepositoryManagementServiceTests {
                     .equals("/repos/target-org/SBB-010001/git/refs/heads/master")
                     && api.patchRequests.get(0).body().contains("\"force\":false"),
                     "The initialized default branch is advanced safely to the template commit");
+            require(api.putRequests.get(0).uri().getPath().equals("/repos/target-org/SBB-010001/topics")
+                    && api.putRequests.get(0).body().contains("\"names\":[\"archimate\"]"),
+                    "New repositories are assigned the fixed default topic");
             require(progress.stream().anyMatch(item -> item.contains("Publishing")),
                     "The create flow reports progress through initial publication");
         } finally {
@@ -127,6 +132,7 @@ public final class RepositoryManagementServiceTests {
     private static final class RecordingApi implements GitHubApiClient {
         private final List<Posted> postRequests = new ArrayList<>();
         private final List<Posted> patchRequests = new ArrayList<>();
+        private final List<Posted> putRequests = new ArrayList<>();
         private boolean unsafeSymlink;
 
         @Override
@@ -137,7 +143,14 @@ public final class RepositoryManagementServiceTests {
                 return response(200, "{\"full_name\":\"source/templates\",\"default_branch\":\"master\"}");
             }
             if (path.equals("/orgs/target-org/repos")) {
-                return response(200, "[" + repositoryJson("target-org/existing") + "]");
+                String lowercase = repositoryJson("target-org/archimate-lowercase")
+                        .replace("\"topics\":[]", "\"topics\":[\"archimate\"]");
+                String mixedCase = repositoryJson("target-org/archimate-mixedcase")
+                        .replace("\"topics\":[]", "\"topics\":[\"governance\",\"ARCHIMATE\"]");
+                String governanceOnly = repositoryJson("target-org/governance-only")
+                        .replace("\"topics\":[]", "\"topics\":[\"governance\"]");
+                return response(200, "[" + lowercase + "," + mixedCase + ","
+                        + governanceOnly + "," + repositoryJson("target-org/untagged") + "]");
             }
             if (path.equals("/repos/source/templates/contents")) {
                 return response(200, """
@@ -204,6 +217,16 @@ public final class RepositoryManagementServiceTests {
                 return response(200, "{\"ref\":\"refs/heads/master\"}");
             }
             throw new AssertionError("Unexpected API PATCH " + uri);
+        }
+
+        @Override
+        public RestResponse put(URI uri, String token, String body, CancellationToken cancellation) {
+            cancellation.throwIfCancelled();
+            putRequests.add(new Posted(uri, body));
+            if (uri.getPath().equals("/repos/target-org/SBB-010001/topics")) {
+                return response(200, "{\"names\":[\"archimate\"]}");
+            }
+            throw new AssertionError("Unexpected API PUT " + uri);
         }
 
         private static String repositoryJson(String fullName) {

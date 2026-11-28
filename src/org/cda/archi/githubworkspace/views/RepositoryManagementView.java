@@ -64,7 +64,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     @Override
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("Management Repositories - GitHub Workspace");
+        shell.setText("GitHub Workspace");
         try (InputStream stream = RepositoryManagementView.class.getResourceAsStream("/icons/github.png")) {
             if (stream != null) {
                 windowIcon = new Image(shell.getDisplay(), stream);
@@ -83,7 +83,8 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     @Override
     protected Control createDialogArea(Composite parent) {
         setTitle("Management Repositories");
-        setMessage("All repositories in the organization configured in Preferences.");
+        setMessage("Repositories tagged with the default topic \""
+                + org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC + "\".");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -110,6 +111,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         repositories.setLinesVisible(true);
         repositories.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         addColumn("Repository", 220);
+        addColumn("Topic", 150);
         addColumn("Description", 380);
         addColumn("Visibility", 100);
         addColumn("Default branch", 150);
@@ -130,14 +132,15 @@ public final class RepositoryManagementView extends TitleAreaDialog {
             TableItem item = new TableItem(repositories, SWT.NONE);
             item.setText(new String[] {
                     repository.getName(),
+                    String.join(", ", repository.getTopics()),
                     repository.getDescription(),
                     repository.getVisibility(),
                     repository.getDefaultBranch()
             });
             item.setData(repository);
         }
-        status.setText(items.size() + (items.size() == 1 ? " repository in " : " repositories in ")
-                + organization);
+        status.setText(items.size() + (items.size() == 1 ? " repository tagged " : " repositories tagged ")
+                + org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC + " in " + organization);
         repositories.getParent().layout(true, true);
     }
 

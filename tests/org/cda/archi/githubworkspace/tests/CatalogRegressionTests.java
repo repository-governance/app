@@ -24,6 +24,10 @@ public final class CatalogRegressionTests {
                 "src/org/cda/archi/githubworkspace/views/RepositoryBrowserView.java"));
         String cloneDialog = Files.readString(root.resolve(
                 "src/org/cda/archi/githubworkspace/views/CloneRepositoryDialog.java"));
+        String preferencesPage = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/views/GitHubWorkspacePreferencePage.java"));
+        String managementController = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/controllers/RepositoryManagementController.java"));
         int assertions = 0;
 
         assertions += sourceContains(controller, "private void initialize() {\n        connect();",
@@ -48,6 +52,14 @@ public final class CatalogRegressionTests {
                 "Refresh reconnects when no valid session exists");
         assertions += sourceContains(view, "|| !topic.equals(preferences.getTopic())",
                 "Preference changes are detected after the preference dialog closes");
+        assertions += sourceContains(preferencesPage,
+                "organization = row(content, \"Organization URL:\", preferences.getOrganizationUrl());",
+                "Organization Preferences accepts a GitHub organization URL");
+        assertions += sourceContains(preferencesPage, "topic.setEnabled(false);",
+                "Topic by default is locked in Preferences");
+        assertions += sourceContains(preferencesPage,
+                "new Table(content, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE)",
+                "Git authentication status is displayed in a structured table");
         assertions += sourceContains(view, "if (changed && listener != null) {\n                search.setText(\"\");\n                listener.refresh();",
                 "Effective preference changes automatically refresh the catalog");
         assertions += sourceContains(view, "cloneButton.addListener(SWT.Selection",
@@ -89,7 +101,11 @@ public final class CatalogRegressionTests {
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/controllers/RepositoryManagementController.java"),
                 "management.listOrganizationRepositories(",
-                "Management Repositories loads all repositories without the Browse topic filter");
+                "Management Repositories loads repositories using the fixed default topic filter");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/services/RepositoryManagementService.java"),
+                "DEFAULT_TOPIC.equalsIgnoreCase(repositoryTopic.trim())",
+                "Management filtering uses the fixed default topic");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
                 "new Table(content, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE)",
@@ -119,6 +135,12 @@ public final class CatalogRegressionTests {
                 "Repository catalog customizes the bottom button bar");
         assertions += sourceContains(view, "Dialog.getImage(Dialog.DLG_IMG_HELP)",
                 "Repository catalog help icon opens the diagnostic log");
+        assertions += sourceContains(view, "shell.setText(\"GitHub Workspace\");",
+                "Browse dialog title uses the plugin name without repeating the inner heading");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "shell.setText(\"GitHub Workspace\");",
+                "Management dialog title uses the plugin name");
         assertions += sourceContains(view, "cancelButton.setVisible(false);",
                 "Cancel is hidden outside a cancelable operation");
         assertions += sourceContains(view, "if (busy) return;\n                if (listener == null)",
@@ -137,6 +159,14 @@ public final class CatalogRegressionTests {
                 root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
                 "Dialog.getImage(Dialog.DLG_IMG_HELP)",
                 "Management Repositories exposes the log through a help icon in the lower-left button bar");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "addColumn(\"Topic\", 150);",
+                "Management Repositories displays the topic column");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
+                "String.join(\", \", repository.getTopics())",
+                "Management Repositories displays all topics on each repository row");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/PluginLogDialog.java"),
                 "SWT.MULTI | SWT.BORDER | SWT.READ_ONLY | SWT.V_SCROLL | SWT.H_SCROLL",

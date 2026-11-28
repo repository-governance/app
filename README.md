@@ -32,8 +32,8 @@ Open **Preferences → GitHub Workspace**. Settings use the native Archi/Eclipse
 
 ### Repository Discovery
 
-- **Organization**: defaults to `repository-governance`.
-- **Repository Topic**: defaults to `archimate`.
+- **Organization URL**: defaults to `https://github.com/repository-governance`; the app stores and sends the organization login.
+- **Topic by default**: fixed to `archimate` and read-only. It filters Browse and Management repositories and is assigned to newly created repositories.
 - **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
 - **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
 
@@ -51,17 +51,17 @@ On Windows this is `%USERPROFILE%\.github-workspace\workspace\`. Clear **Use def
 
 ### Authentication
 
-Git installation/version, credential-helper configuration, and the last authenticated GitHub account are read-only status. Authentication uses the existing `git credential fill` flow. No token is requested by the UI or stored in preferences.
+Git installation/version, credential-helper configuration, and the last authenticated GitHub account appear in a read-only Setting/Value table. Authentication uses the existing `git credential fill` flow. No token is requested by the UI or stored in preferences.
 
 The preference page uses Archi's native **Apply**, **Apply and Close**, **Cancel**, and **Restore Defaults** actions.
 
 ## Manage organization repositories
 
-Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
+Choose **File → GitHub Workspace → Management Repositories** to view repositories tagged with the fixed `archimate` topic. The grid includes a Topic column alongside each repository's description, visibility, and default branch.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit on the new repository's GitHub-default branch.
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization, published together as its initial commit on the new repository's GitHub-default branch, and tagged with `archimate`.
 
-Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
+Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, write Git objects, and manage repository topics. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 
 ## Diagnostic log
 
@@ -69,11 +69,11 @@ The help icon in the lower-left corner of Browse Repositories and Management Rep
 
 ## Manage organization repositories
 
-Choose **File → GitHub Workspace → Management Repositories** to view all repositories visible to the authenticated account in the configured organization. This list is not filtered by the Browse Repositories topic.
+Choose **File → GitHub Workspace → Management Repositories** to view repositories tagged with the fixed `archimate` topic. The grid includes a Topic column alongside each repository's description, visibility, and default branch.
 
-**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization and published together as its initial commit on the new repository's GitHub-default branch.
+**Create Repository** loads the first-level folders of the configured template repository. Choose a folder, enter a new repository name and optional description, and select public or private visibility. The selected folder's files are copied to the root of a new repository in the configured organization, published together as its initial commit on the new repository's GitHub-default branch, and tagged with `archimate`.
 
-Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, and write Git objects. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
+Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, write Git objects, and manage repository topics. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
 
 ## Browse repositories
 

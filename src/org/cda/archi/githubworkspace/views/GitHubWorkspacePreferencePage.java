@@ -15,6 +15,9 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
@@ -30,10 +33,11 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
     private Button useDefault;
     private Text workspaceLocation;
     private Button browse;
-    private Label gitStatus;
-    private Label gitVersion;
-    private Label credentialStatus;
-    private Label account;
+    private Table authenticationTable;
+    private TableItem gitStatus;
+    private TableItem gitVersion;
+    private TableItem credentialStatus;
+    private TableItem account;
 
     public GitHubWorkspacePreferencePage() {
         setTitle("GitHub Workspace");
@@ -49,8 +53,10 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         content.setLayout(new GridLayout(3, false));
 
         groupTitle(content, "Repository Discovery");
-        organization = row(content, "Organization:", preferences.getOrganization());
-        topic = row(content, "Repository Topic:", preferences.getTopic());
+        organization = row(content, "Organization URL:", preferences.getOrganizationUrl());
+        topic = row(content, "Topic by default:", PreferencesService.DEFAULT_TOPIC);
+        topic.setEnabled(false);
+        topic.setToolTipText("Fixed default topic used for repository discovery and newly created repositories.");
 
         groupTitle(content, "Repository Templates");
         templateRepository = row(content, "Template Repository URL:", preferences.getTemplateRepository());
@@ -75,11 +81,21 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         useDefault.addListener(SWT.Selection, event -> updateWorkspaceControls());
         updateWorkspaceControls();
 
-        groupTitle(content, "Authentication");
-        gitStatus = readonlyRow(content, "Git installation:");
-        gitVersion = readonlyRow(content, "Git version:");
-        credentialStatus = readonlyRow(content, "Git Credential Manager / helper:");
-        account = readonlyRow(content, "Authenticated GitHub account:");
+        groupTitle(content, "Git Authentication");
+        authenticationTable = new Table(content, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE);
+        authenticationTable.setHeaderVisible(true);
+        authenticationTable.setLinesVisible(true);
+        authenticationTable.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        TableColumn settingColumn = new TableColumn(authenticationTable, SWT.LEFT);
+        settingColumn.setText("Setting");
+        settingColumn.setWidth(270);
+        TableColumn valueColumn = new TableColumn(authenticationTable, SWT.LEFT);
+        valueColumn.setText("Value");
+        valueColumn.setWidth(500);
+        gitStatus = authRow("Git installation");
+        gitVersion = authRow("Git version");
+        credentialStatus = authRow("Git Credential Manager / helper");
+        account = authRow("Authenticated GitHub account");
         loadGitStatusAsync();
 
         if (new WorkspaceService(preferences).hasLegacyGovernanceWorkspace()) {
@@ -105,7 +121,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
 
     @Override
     protected void performDefaults() {
-        organization.setText(PreferencesService.DEFAULT_ORGANIZATION);
+        organization.setText("https://github.com/" + PreferencesService.DEFAULT_ORGANIZATION);
         topic.setText(PreferencesService.DEFAULT_TOPIC);
         templateRepository.setText(PreferencesService.DEFAULT_TEMPLATE_REPOSITORY);
         useDefault.setSelection(true);
@@ -128,7 +144,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
                 workspace = Path.of(workspaceLocation.getText().trim()).toAbsolutePath().normalize();
             }
             PreferencesService.validateWorkspaceLocation(workspace.toString());
-            preferences.saveSearch(organization.getText().trim(), topic.getText().trim());
+            preferences.saveSearch(organization.getText().trim());
             preferences.saveTemplateRepository(templateRepository.getText().trim());
             preferences.saveWorkspace(useDefault.getSelection(), workspaceLocation.getText().trim());
             setErrorMessage(null);
@@ -141,7 +157,6 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
 
     private void validateDiscovery() {
         new org.cda.archi.githubworkspace.models.GitHubOrganization(organization.getText().trim());
-        org.cda.archi.githubworkspace.services.GitHubRepositoryService.validateTopic(topic.getText().trim());
     }
 
     private void browseForWorkspace() {
@@ -193,11 +208,15 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
             GitConfiguration configuration = new GitService().inspect(new CancellationToken());
             org.eclipse.swt.widgets.Display display = org.eclipse.swt.widgets.Display.getDefault();
             if (!display.isDisposed()) display.asyncExec(() -> {
-                if (gitStatus == null || gitStatus.isDisposed()) return;
-                gitStatus.setText(configuration.isAvailable() ? "Available" : "Not available");
-                gitVersion.setText(configuration.getVersion().isBlank() ? "Unknown" : configuration.getVersion());
-                credentialStatus.setText(configuration.hasCredentialHelper() ? "Configured" : "Not configured");
-                account.setText(preferences.getLastAccount().isBlank() ? "Not connected" : preferences.getLastAccount());
+                if (authenticationTable == null || authenticationTable.isDisposed()) return;
+                gitStatus.setText(new String[] {"Git installation",
+                        configuration.isAvailable() ? "Available" : "Not available"});
+                gitVersion.setText(new String[] {"Git version",
+                        configuration.getVersion().isBlank() ? "Unknown" : configuration.getVersion()});
+                credentialStatus.setText(new String[] {"Git Credential Manager / helper",
+                        configuration.hasCredentialHelper() ? "Configured" : "Not configured"});
+                account.setText(new String[] {"Authenticated GitHub account",
+                        preferences.getLastAccount().isBlank() ? "Not connected" : preferences.getLastAccount()});
                 ((Composite) getControl()).layout(true, true);
             });
         }, "GitHub Workspace preference status");
@@ -216,13 +235,10 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         return text;
     }
 
-    private static Label readonlyRow(Composite parent, String title) {
-        Label caption = new Label(parent, SWT.NONE);
-        caption.setText(title);
-        Label value = new Label(parent, SWT.WRAP);
-        value.setText("Checking...");
-        value.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        return value;
+    private TableItem authRow(String title) {
+        TableItem row = new TableItem(authenticationTable, SWT.NONE);
+        row.setText(new String[] {title, "Checking..."});
+        return row;
     }
 
     private static void groupTitle(Composite parent, String title) {
