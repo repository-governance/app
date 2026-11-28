@@ -31,6 +31,8 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.widgets.ToolBar;
 import org.eclipse.swt.widgets.ToolItem;
@@ -51,6 +53,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     private Listener listener;
     private TableViewer tables;
     private TableViewer records;
+    private TableViewer schemaColumns;
     private Text searchTables;
     private Text searchRecords;
     private Label tableDescription;
@@ -182,6 +185,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         records.getTable().setRedraw(true);
         rebuildRecordColumns(schema);
         records.setInput(allRecords);
+        schemaColumns.setInput(schema.columns());
         if (editRecord != null && !editRecord.isDisposed()) editRecord.setEnabled(false);
         if (deleteRecord != null && !deleteRecord.isDisposed()) deleteRecord.setEnabled(false);
         tableDescription.setText(schema.name() + (schema.description().isBlank()
@@ -276,18 +280,30 @@ public final class DataManagerDialog extends TitleAreaDialog {
         tableDescription = new Label(panel, SWT.WRAP);
         tableDescription.setText("Select a table to view its records.");
         tableDescription.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        ToolBar toolbar = new ToolBar(panel, SWT.FLAT | SWT.RIGHT);
-        toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        newRecord = toolItem(toolbar, "New Record", () -> {
-            if (selectedSchema != null) new RecordEditorDialog(getShell(), selectedSchema, null,
-                    values -> { if (listener != null) listener.createRecord(selectedSchema, values); }).open();
-        });
-        editRecord = toolItem(toolbar, "Edit Record", this::editSelected);
-        deleteRecord = toolItem(toolbar, "Delete Record", this::deleteSelected);
-        schemaButton = toolItem(toolbar, "View Schema", () -> {
+
+        TabFolder tabs = new TabFolder(panel, SWT.NONE);
+        tabs.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        TabItem recordsTab = new TabItem(tabs, SWT.NONE);
+        recordsTab.setText("Records");
+        Composite recordPanel = new Composite(tabs, SWT.NONE);
+        recordPanel.setLayout(new GridLayout(1, false));
+        recordsTab.setControl(recordPanel);
+
+        TabItem schemaTab = new TabItem(tabs, SWT.NONE);
+        schemaTab.setText("Schema");
+        Composite schemaPanel = new Composite(tabs, SWT.NONE);
+        schemaPanel.setLayout(new GridLayout(1, false));
+        schemaTab.setControl(schemaPanel);
+
+        Label schemaIntro = new Label(schemaPanel, SWT.WRAP);
+        schemaIntro.setText("Review and edit this table's structure. The table name is fixed to its GitHub folder.");
+        schemaIntro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        ToolBar schemaToolbar = new ToolBar(schemaPanel, SWT.FLAT | SWT.RIGHT);
+        schemaToolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        schemaButton = toolItem(schemaToolbar, "View Schema JSON", () -> {
             if (selectedSchema != null) new SchemaViewerDialog(getShell(), selectedSchema).open();
         });
-        editSchemaButton = toolItem(toolbar, "Edit Schema", () -> {
+        editSchemaButton = toolItem(schemaToolbar, "Edit Schema", () -> {
             TableSchema original = selectedSchema;
             if (original == null) return;
             new CreateTableDialog(getShell(),
@@ -296,12 +312,33 @@ public final class DataManagerDialog extends TitleAreaDialog {
                         if (listener != null) listener.updateTableSchema(original, updated);
                     }).open();
         });
+
+        schemaColumns = new TableViewer(schemaPanel, SWT.BORDER | SWT.FULL_SELECTION);
+        schemaColumns.setContentProvider(ArrayContentProvider.getInstance());
+        schemaColumns.getTable().setHeaderVisible(true);
+        schemaColumns.getTable().setLinesVisible(true);
+        schemaColumns.getTable().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        schemaColumn(schemaColumns, "Column", 140, value -> value.name());
+        schemaColumn(schemaColumns, "Type", 100, value -> value.type().name());
+        schemaColumn(schemaColumns, "Required", 80, value -> value.required() ? "Yes" : "No");
+        schemaColumn(schemaColumns, "Primary Key", 100, value -> value.primaryKey() ? "Yes" : "No");
+        schemaColumn(schemaColumns, "Regex", 220, value -> value.pattern());
+        schemaColumn(schemaColumns, "Validation Message", 260, value -> value.validationMessage());
+
+        ToolBar toolbar = new ToolBar(recordPanel, SWT.FLAT | SWT.RIGHT);
+        toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        newRecord = toolItem(toolbar, "New Record", () -> {
+            if (selectedSchema != null) new RecordEditorDialog(getShell(), selectedSchema, null,
+                    values -> { if (listener != null) listener.createRecord(selectedSchema, values); }).open();
+        });
+        editRecord = toolItem(toolbar, "Edit Record", this::editSelected);
+        deleteRecord = toolItem(toolbar, "Delete Record", this::deleteSelected);
         refreshRecords = toolItem(toolbar, "Refresh", () -> {
             if (selectedSchema != null && listener != null) listener.selectTable(selectedSchema);
             else if (listener != null) listener.refresh();
         });
         refreshRecords.setToolTipText("Reload tables and selected records");
-        Composite recordOptions = new Composite(panel, SWT.NONE);
+        Composite recordOptions = new Composite(recordPanel, SWT.NONE);
         recordOptions.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         recordOptions.setLayout(new GridLayout(2, false));
         searchRecords = new Text(recordOptions, SWT.BORDER | SWT.SEARCH | SWT.ICON_SEARCH | SWT.CANCEL);
@@ -310,7 +347,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         searchRecords.addModifyListener(event -> filterRecords());
         count = new Label(recordOptions, SWT.NONE);
         count.setText("0 records");
-        records = new TableViewer(panel, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE | SWT.V_SCROLL | SWT.H_SCROLL);
+        records = new TableViewer(recordPanel, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE | SWT.V_SCROLL | SWT.H_SCROLL);
         records.setContentProvider(ArrayContentProvider.getInstance());
         records.getTable().setHeaderVisible(true);
         records.getTable().setLinesVisible(true);
@@ -340,6 +377,18 @@ public final class DataManagerDialog extends TitleAreaDialog {
                 }
             });
         }
+    }
+
+    private static void schemaColumn(TableViewer viewer, String title, int width,
+            java.util.function.Function<org.cda.archi.githubworkspace.models.ColumnDefinition, String> text) {
+        TableViewerColumn column = new TableViewerColumn(viewer, SWT.LEFT);
+        column.getColumn().setText(title);
+        column.getColumn().setWidth(width);
+        column.setLabelProvider(new ColumnLabelProvider() {
+            @Override public String getText(Object element) {
+                return text.apply((org.cda.archi.githubworkspace.models.ColumnDefinition) element);
+            }
+        });
     }
 
     private void filterRecords() {

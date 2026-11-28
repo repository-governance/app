@@ -52,8 +52,12 @@ public final class CatalogRegressionTests {
                 "Data Manager exposes the shared diagnostic log viewer");
         assertions += sourceContains(dataView, "PluginLog.info(\"Data Manager\", \"Opened the log viewer.\")",
                 "Opening the Data Manager log viewer is included in diagnostics");
-        assertions += sourceContains(dataView, "toolItem(toolbar, \"Edit Schema\"",
-                "Data Manager allows editing the selected table schema");
+        assertions += sourceContains(dataView, "recordsTab.setText(\"Records\")",
+                "Data Manager separates record maintenance into its own tab");
+        assertions += sourceContains(dataView, "schemaTab.setText(\"Schema\")",
+                "Data Manager separates schema maintenance into its own tab");
+        assertions += sourceContains(dataView, "toolItem(schemaToolbar, \"Edit Schema\"",
+                "Schema editing actions are contained in the Schema tab");
         assertions += sourceContains(dataController, "tables.update(owner, repository, branch, original, updated, schemaSha",
                 "Schema editing writes against the schema SHA to prevent lost concurrent updates");
         assertions += sourceContains(columnDialog, "Validate with regular expression",

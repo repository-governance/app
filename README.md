@@ -42,7 +42,7 @@ The catalog searches GitHub using `org:{organization} topic:{topic}` and does no
 
 **Data Repository URL** defaults to `https://github.com/repository-governance/workspace-data`. It must be an HTTPS GitHub repository URL. Data Manager obtains the configured repository's default branch from GitHub REST; it does not assume `main` or `master`. Authentication reuses the configured Git Credential Manager flow, and no PAT or credential is stored by the plugin.
 
-Choose **File → GitHub Workspace → Data Manager...** to open a modal, resizable table designer and JSON-record manager. Tables are discovered from valid schema files; there is no separate catalog file:
+Choose **File → GitHub Workspace → Data Manager...** to open a modal, resizable data manager. The table catalog is on the left; the right panel separates record maintenance and schema design into **Records** and **Schema** tabs. Tables are discovered from valid schema files; there is no separate catalog file:
 
 ```text
 tables/{table-name}/schema.json
