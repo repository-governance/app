@@ -2,15 +2,15 @@
 <?eclipse version="3.4"?>
 <plugin>
    <extension point="org.eclipse.ui.commands">
-      <category id="org.cda.archi.githubworkspace.category" name="GitHub Workspace"/>
-      <command id="org.cda.archi.githubworkspace.browseRepositories"
-               name="Browse Repositories..."
-               categoryId="org.cda.archi.githubworkspace.category"/>
-      <command id="org.cda.archi.githubworkspace.managementRepositories"
-                name="Management Repositories"
+      <category id="org.cda.archi.githubworkspace.category" name="%category.name"/>
+       <command id="org.cda.archi.githubworkspace.browseRepositories"
+                name="%command.browse.name"
                 categoryId="org.cda.archi.githubworkspace.category"/>
-      <command id="org.cda.archi.githubworkspace.dataManager"
-                name="Data Manager..."
+       <command id="org.cda.archi.githubworkspace.managementRepositories"
+                 name="%command.management.name"
+                 categoryId="org.cda.archi.githubworkspace.category"/>
+       <command id="org.cda.archi.githubworkspace.dataManager"
+                name="%command.dataManager.name"
                 categoryId="org.cda.archi.githubworkspace.category"/>
    </extension>
    <extension point="org.eclipse.ui.handlers">
@@ -23,21 +23,21 @@
    </extension>
    <extension point="org.eclipse.ui.menus">
         <menuContribution locationURI="menu:file?after=fileStart">
-          <menu id="org.cda.archi.githubworkspace.menu" label="GitHub Workspace"
+           <menu id="org.cda.archi.githubworkspace.menu" label="%menu.label"
                 icon="icons/github.png">
               <command commandId="org.cda.archi.githubworkspace.browseRepositories"
                        id="org.cda.archi.githubworkspace.browseRepositories.menu"
-                       label="Browse Repositories..."
+                        label="%command.browse.name"
                        icon="icons/catalogs.png"
                        style="push"/>
               <command commandId="org.cda.archi.githubworkspace.managementRepositories"
                         id="org.cda.archi.githubworkspace.managementRepositories.menu"
-                        label="Management Repositories"
+                        label="%command.management.name"
                         icon="icons/repository.png"
                          style="push"/>
                <command commandId="org.cda.archi.githubworkspace.dataManager"
                          id="org.cda.archi.githubworkspace.dataManager.menu"
-                         label="Data Manager..."
+                         label="%command.dataManager.name"
                          icon="icons/database.png"
                          style="push"/>
          </menu>
@@ -45,7 +45,7 @@
    </extension>
    <extension point="org.eclipse.ui.preferencePages">
       <page id="org.cda.archi.githubworkspace.preferences"
-            name="GitHub Workspace"
+             name="%preferences.page.name"
             class="org.cda.archi.githubworkspace.views.GitHubWorkspacePreferencePage"/>
    </extension>
 </plugin>

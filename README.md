@@ -30,6 +30,10 @@ The old on-disk directory `~/.governance/workspace/` is only detected and report
 
 Open **Preferences → GitHub Workspace**. Settings use the native Archi/Eclipse preference store and survive restarts.
 
+### Language
+
+Choose **Automatic (system)**, **English**, or **Español**. Automatic uses the system language when it is Spanish and falls back to English otherwise. A manual choice applies to GitHub Workspace only; changing it in Preferences updates the open repository browser and newly opened plugin dialogs. Repository names, schema identifiers, record values, and GitHub data are never translated or modified.
+
 ### Repository Discovery
 
 - **Organization URL**: defaults to `https://github.com/repository-governance`; the app stores and sends the organization login.

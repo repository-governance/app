@@ -28,6 +28,16 @@ public final class DataManagerServiceTests {
 
     public static int run() throws Exception {
         int assertions = 0;
+        check(LocalizationService.effectiveLanguage(LocalizationService.AUTOMATIC,
+                java.util.Locale.forLanguageTag("es-MX")).equals(LocalizationService.SPANISH)
+                && LocalizationService.effectiveLanguage(LocalizationService.AUTOMATIC,
+                        java.util.Locale.forLanguageTag("fr-FR")).equals(LocalizationService.ENGLISH)
+                && LocalizationService.effectiveLanguage(LocalizationService.ENGLISH,
+                        java.util.Locale.forLanguageTag("es")).equals(LocalizationService.ENGLISH)
+                && LocalizationService.translate("Browse Repositories", LocalizationService.SPANISH)
+                        .equals("Explorar repositorios"),
+                "Automatic locale detection, manual override, and Spanish UI translation work");
+        assertions++;
         TableSchemaService schemaCodec = new TableSchemaService();
         TableSchema schema = new TableSchema("1.0", "architects", "Architecture team", "id", List.of(
                 new ColumnDefinition("id", DataType.STRING, true, true),

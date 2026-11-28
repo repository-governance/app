@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 
 import org.cda.archi.githubworkspace.models.ColumnDefinition;
 import org.cda.archi.githubworkspace.models.TableSchema;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
@@ -56,33 +57,33 @@ public final class CreateTableDialog extends TitleAreaDialog {
 
     @Override protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("GitHub Workspace");
+        shell.setText(LocalizationService.text("GitHub Workspace"));
     }
 
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle(initialSchema == null ? "Create Table" : "Edit Table Schema");
-        setMessage(initialSchema == null
+        setTitle(LocalizationService.text(initialSchema == null ? "Create Table" : "Edit Table Schema"));
+        setMessage(LocalizationService.text(initialSchema == null
                 ? "Define a table schema. Exactly one String, Integer, or UUID primary key is required."
-                : "Update the schema. Existing records must remain compatible. Renames migrate their stored values.");
+                : "Update the schema. Existing records must remain compatible. Renames migrate their stored values."));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         content.setLayout(new GridLayout(1, false));
         Group properties = new Group(content, SWT.NONE);
-        properties.setText("Table Properties");
+        properties.setText(LocalizationService.text("Table Properties"));
         properties.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         properties.setLayout(new GridLayout(2, false));
-        new Label(properties, SWT.NONE).setText("Table Name:");
+        new Label(properties, SWT.NONE).setText(LocalizationService.text("Table Name:"));
         name = new Text(properties, SWT.BORDER);
-        name.setMessage("architects");
+        name.setMessage(LocalizationService.text("architects"));
         if (initialSchema != null) name.setText(initialSchema.name());
         name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        new Label(properties, SWT.NONE).setText("Description:");
+        new Label(properties, SWT.NONE).setText(LocalizationService.text("Description:"));
         description = new Text(properties, SWT.BORDER);
         if (initialSchema != null) description.setText(initialSchema.description());
         description.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         Group columnsGroup = new Group(content, SWT.NONE);
-        columnsGroup.setText("Columns");
+        columnsGroup.setText(LocalizationService.text("Columns"));
         columnsGroup.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         columnsGroup.setLayout(new GridLayout(2, false));
         grid = new Table(columnsGroup, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE);
@@ -91,7 +92,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         grid.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         for (String heading : List.of("Column Name", "Data Type", "Primary Key", "Required")) {
             TableColumn column = new TableColumn(grid, SWT.LEFT);
-            column.setText(heading);
+            column.setText(LocalizationService.text(heading));
             column.setWidth(120);
         }
         Composite buttons = new Composite(columnsGroup, SWT.NONE);
@@ -109,9 +110,9 @@ public final class CreateTableDialog extends TitleAreaDialog {
     }
 
     @Override protected void createButtonsForButtonBar(Composite parent) {
-        createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
+        createButton(parent, IDialogConstants.CANCEL_ID, LocalizationService.text("Cancel"), false);
         create = createButton(parent, IDialogConstants.OK_ID,
-                initialSchema == null ? "Create Table" : "Save Schema", true);
+                LocalizationService.text(initialSchema == null ? "Create Table" : "Save Schema"), true);
         validateForm();
     }
 
@@ -122,7 +123,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
             saved.accept(schema, renamedColumns());
             super.okPressed();
         } catch (IllegalArgumentException ex) {
-            setErrorMessage(ex.getMessage());
+            setErrorMessage(LocalizationService.text(ex.getMessage()));
         }
     }
 
@@ -165,7 +166,8 @@ public final class CreateTableDialog extends TitleAreaDialog {
             TableItem item = new TableItem(grid, SWT.NONE);
             item.setText(new String[] {column.name(),
                     org.cda.archi.githubworkspace.services.TableSchemaService.displayType(column.type()),
-                    column.primaryKey() ? "Yes" : "No", column.required() ? "Yes" : "No"});
+                    LocalizationService.text(column.primaryKey() ? "Yes" : "No"),
+                    LocalizationService.text(column.required() ? "Yes" : "No")});
         }
         validateForm();
     }
@@ -174,17 +176,17 @@ public final class CreateTableDialog extends TitleAreaDialog {
         String error = null;
         try {
             if (name == null || name.isDisposed() || name.getText().isBlank()) {
-                throw new IllegalArgumentException("Table Name is required.");
+                throw new IllegalArgumentException(LocalizationService.text("Table Name is required."));
             }
             if (!TableSchema.isSafeTableName(name.getText().trim())) {
-                throw new IllegalArgumentException(
-                        "Use 1–48 letters, digits, underscores, or hyphens; begin with a letter or underscore.");
+                throw new IllegalArgumentException(LocalizationService.text(
+                        "Use 1–48 letters, digits, underscores, or hyphens; begin with a letter or underscore."));
             }
             boolean sameExistingName = initialSchema != null
                     && initialSchema.name().equalsIgnoreCase(name.getText().trim());
             if (existingNames.contains(name.getText().trim().toLowerCase(java.util.Locale.ROOT))
                     && !sameExistingName) {
-                throw new IllegalArgumentException("A table with this name already exists.");
+                throw new IllegalArgumentException(LocalizationService.text("A table with this name already exists."));
             }
             new TableSchema("1.0", name.getText().trim(), "", null, columns);
         } catch (IllegalArgumentException ex) {
@@ -194,12 +196,12 @@ public final class CreateTableDialog extends TitleAreaDialog {
             java.util.Set<String> unique = new java.util.HashSet<>();
             for (ColumnDefinition column : columns) {
                 if (!unique.add(column.name().toLowerCase(java.util.Locale.ROOT))) {
-                    error = "Column names must be unique.";
+                    error = LocalizationService.text("Column names must be unique.");
                     break;
                 }
             }
         }
-        setErrorMessage(error);
+        setErrorMessage(LocalizationService.text(error));
         if (create != null && !create.isDisposed()) create.setEnabled(error == null);
     }
 
@@ -213,7 +215,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
 
     private static void action(Composite parent, String title, Runnable task) {
         Button button = new Button(parent, SWT.PUSH);
-        button.setText(title);
+        button.setText(LocalizationService.text(title));
         button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         button.addListener(SWT.Selection, event -> task.run());
     }

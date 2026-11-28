@@ -30,6 +30,8 @@ public final class ArtifactValidationTests {
             require(attributes.getValue("Bundle-SymbolicName").startsWith("org.cda.archi.githubworkspace"),
                     "Bundle symbolic name matches");
             require(version.equals(attributes.getValue("Bundle-Version")), "Bundle version matches VERSION");
+            require("plugin".equals(attributes.getValue("Bundle-Localization")),
+                    "OSGi extensions use the localized plugin properties");
             String requiredBundles = attributes.getValue("Require-Bundle");
             require(requiredBundles.contains("com.archimatetool.editor")
                     && requiredBundles.contains("com.archimatetool.model"),
@@ -53,6 +55,7 @@ public final class ArtifactValidationTests {
                     "org/cda/archi/githubworkspace/services/WorkspaceService.class",
                     "org/cda/archi/githubworkspace/models/RepositoryTemplateFolder.class",
                     "org/cda/archi/githubworkspace/services/PreferencesService.class",
+                    "org/cda/archi/githubworkspace/services/LocalizationService.class",
                     "org/cda/archi/githubworkspace/services/ArchiModelService.class",
                     "org/cda/archi/githubworkspace/infrastructure/ProcessExecutor.class",
                     "org/cda/archi/githubworkspace/infrastructure/CatalogWorker.class",
@@ -60,6 +63,10 @@ public final class ArtifactValidationTests {
                     "org/cda/archi/githubworkspace/infrastructure/GitCredentialAdapter.class",
                     "icons/github.png",
                     "icons/catalogs.png",
+                    "icons/database.png",
+                    "icons/repository.png",
+                    "plugin.properties",
+                    "plugin_es.properties",
                     "plugin.xml" }) {
                 require(jar.getEntry(entry) != null, "Bundle contains " + entry);
             }
@@ -82,7 +89,7 @@ public final class ArtifactValidationTests {
 
             Element submenu = findById(contribution.getElementsByTagName("menu"),
                     "org.cda.archi.githubworkspace.menu");
-            require(submenu != null && "GitHub Workspace".equals(submenu.getAttribute("label"))
+            require(submenu != null && "%menu.label".equals(submenu.getAttribute("label"))
                     && "icons/github.png".equals(submenu.getAttribute("icon")),
                     "GitHub Workspace submenu ID, label and icon are present");
             Element browseCommand = findById(submenu.getElementsByTagName("command"),
@@ -90,7 +97,7 @@ public final class ArtifactValidationTests {
             require(browseCommand != null
                     && "org.cda.archi.githubworkspace.browseRepositories".equals(
                             browseCommand.getAttribute("commandId"))
-                    && "Browse Repositories...".equals(browseCommand.getAttribute("label"))
+                    && "%command.browse.name".equals(browseCommand.getAttribute("label"))
                     && "icons/catalogs.png".equals(browseCommand.getAttribute("icon")),
                     "Browse Repositories command IDs, label and icon are preserved");
             Element managementCommand = findById(submenu.getElementsByTagName("command"),
@@ -98,8 +105,15 @@ public final class ArtifactValidationTests {
             require(managementCommand != null
                     && "org.cda.archi.githubworkspace.managementRepositories".equals(
                             managementCommand.getAttribute("commandId"))
-                    && "Management Repositories".equals(managementCommand.getAttribute("label")),
+                    && "%command.management.name".equals(managementCommand.getAttribute("label"))
+                    && "icons/repository.png".equals(managementCommand.getAttribute("icon")),
                     "Management Repositories command is contributed to the GitHub Workspace submenu");
+            Element dataManagerCommand = findById(submenu.getElementsByTagName("command"),
+                    "org.cda.archi.githubworkspace.dataManager.menu");
+            require(dataManagerCommand != null
+                    && "%command.dataManager.name".equals(dataManagerCommand.getAttribute("label"))
+                    && "icons/database.png".equals(dataManagerCommand.getAttribute("icon")),
+                    "Data Manager command is localized and uses its dedicated icon");
             NodeList menuCommands = submenu.getElementsByTagName("command");
             int browseIndex = indexOfId(menuCommands, "org.cda.archi.githubworkspace.browseRepositories.menu");
             int managementIndex = indexOfId(menuCommands,

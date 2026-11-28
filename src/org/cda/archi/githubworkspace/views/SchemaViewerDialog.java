@@ -1,6 +1,7 @@
 package org.cda.archi.githubworkspace.views;
 
 import org.cda.archi.githubworkspace.models.TableSchema;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.cda.archi.githubworkspace.services.TableSchemaService;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
@@ -20,17 +21,17 @@ public final class SchemaViewerDialog extends TitleAreaDialog {
         setShellStyle(SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
     }
     @Override protected void configureShell(Shell shell) {
-        super.configureShell(shell); shell.setText("GitHub Workspace");
+        super.configureShell(shell); shell.setText(LocalizationService.text("GitHub Workspace"));
     }
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle("View Schema — " + schema.name());
+        setTitle(LocalizationService.format("View Schema — {0}", schema.name()));
         setMessage(schema.description());
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         content.setLayout(new GridLayout(1, false));
         Label pk = new Label(content, SWT.NONE);
-        pk.setText("Primary key: " + schema.primaryKey());
+        pk.setText(LocalizationService.format("Primary key: {0}", schema.primaryKey()));
         Text columns = new Text(content, SWT.BORDER | SWT.READ_ONLY | SWT.MULTI | SWT.V_SCROLL);
         columns.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         StringBuilder text = new StringBuilder();

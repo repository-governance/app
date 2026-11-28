@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 
 import org.cda.archi.githubworkspace.models.DataRecord;
 import org.cda.archi.githubworkspace.models.TableSchema;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
@@ -33,13 +34,13 @@ public final class RecordEditorDialog extends TitleAreaDialog {
 
     @Override protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("GitHub Workspace");
+        shell.setText(LocalizationService.text("GitHub Workspace"));
     }
 
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle(record == null ? "New Record" : "Edit Record");
-        setMessage(record == null ? "Enter values for " + schema.name() + "."
-                : "Primary key cannot be changed.");
+        setTitle(LocalizationService.text(record == null ? "New Record" : "Edit Record"));
+        setMessage(LocalizationService.text(record == null
+                ? "Enter values for " + schema.name() + "." : "Primary key cannot be changed."));
         Composite area = (Composite) super.createDialogArea(parent);
         form = new DynamicFormRenderer(area, schema, record == null ? Map.of() : record.values(),
                 record != null, this::validityChanged);
@@ -48,8 +49,8 @@ public final class RecordEditorDialog extends TitleAreaDialog {
     }
 
     @Override protected void createButtonsForButtonBar(Composite parent) {
-        createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
-        save = createButton(parent, IDialogConstants.OK_ID, "Save", true);
+        createButton(parent, IDialogConstants.CANCEL_ID, LocalizationService.text("Cancel"), false);
+        save = createButton(parent, IDialogConstants.OK_ID, LocalizationService.text("Save"), true);
         validityChanged(form != null && form.validate());
     }
 

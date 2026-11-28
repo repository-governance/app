@@ -37,6 +37,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.cda.archi.githubworkspace.services.PreferencesService;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.accessibility.AccessibleAdapter;
@@ -61,10 +62,11 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     private final Map<Long, RepositoryCard> cards = new HashMap<>();
     private final Set<Long> requestedThumbnails = new HashSet<>();
     private Listener listener;
-    private Label accountLabel;
     private Label statusLabel;
+    private String statusMessage = "Loading authorized repositories...";
     private Text search;
     private Button refreshButton;
+    private Button preferencesButton;
     private Button cancelButton;
     private Button retryButton;
     private ScrolledComposite scroller;
@@ -96,7 +98,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     @Override
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("GitHub Workspace");
+        shell.setText(LocalizationService.text("GitHub Workspace"));
         try (InputStream iconStream = RepositoryBrowserView.class.getResourceAsStream("/icons/github.png")) {
             if (iconStream != null) {
                 windowIcon = new Image(shell.getDisplay(), iconStream);
@@ -113,8 +115,8 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
 
     @Override
     protected org.eclipse.swt.widgets.Control createDialogArea(Composite parent) {
-        setTitle("Browse Repositories");
-        setMessage("Repositories in the organization and topic configured in Preferences.");
+        setTitle(LocalizationService.text("Browse Repositories"));
+        setMessage(LocalizationService.text("Repositories in the organization and topic configured in Preferences."));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite root = new Composite(area, SWT.NONE);
         root.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -124,28 +126,26 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         toolbar.setLayout(new GridLayout(3, false));
         search = new Text(toolbar, SWT.SEARCH | SWT.ICON_SEARCH | SWT.CANCEL | SWT.BORDER);
-        search.setMessage("Filter repositories...");
+        search.setMessage(LocalizationService.text("Filter repositories..."));
         search.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         search.addModifyListener(event -> applyFilter());
         refreshButton = new Button(toolbar, SWT.PUSH);
-        refreshButton.setText("Refresh");
-        refreshButton.setToolTipText("Refresh repositories using the saved organization and topic.");
+        refreshButton.setText(LocalizationService.text("Refresh"));
+        refreshButton.setToolTipText(LocalizationService.text(
+                "Refresh repositories using the saved organization and topic."));
         refreshButton.addListener(SWT.Selection, event -> {
             if (listener != null && !busy) listener.refresh();
         });
-        Button preferencesButton = new Button(toolbar, SWT.PUSH);
-        preferencesButton.setText("Preferences");
-        preferencesButton.setToolTipText("Edit repository filters and workspace location.");
+        preferencesButton = new Button(toolbar, SWT.PUSH);
+        preferencesButton.setText(LocalizationService.text("Preferences"));
+        preferencesButton.setToolTipText(LocalizationService.text("Edit repository filters and workspace location."));
         preferencesButton.addListener(SWT.Selection, event -> openPreferences());
         Composite statusRow = new Composite(root, SWT.NONE);
         statusRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        statusRow.setLayout(new GridLayout(3, false));
-        accountLabel = new Label(statusRow, SWT.NONE);
-        accountLabel.setText("Connecting to GitHub...");
-        accountLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        retryButton = new Button(statusRow, SWT.PUSH);
-        retryButton.setText("Retry Connection");
-        retryButton.setToolTipText("Retry authentication with Git Credential Manager.");
+         statusRow.setLayout(new GridLayout(2, false));
+         retryButton = new Button(statusRow, SWT.PUSH);
+        retryButton.setText(LocalizationService.text("Retry Connection"));
+        retryButton.setToolTipText(LocalizationService.text("Retry authentication with Git Credential Manager."));
         retryButton.setVisible(false);
         GridData retryData = new GridData(SWT.END, SWT.CENTER, false, false);
         retryData.exclude = true;
@@ -154,8 +154,8 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             if (listener != null && !busy) listener.retryConnection();
         });
         cancelButton = new Button(statusRow, SWT.PUSH);
-        cancelButton.setText("Cancel");
-        cancelButton.setToolTipText("Cancel the current operation.");
+        cancelButton.setText(LocalizationService.text("Cancel"));
+        cancelButton.setToolTipText(LocalizationService.text("Cancel the current operation."));
         cancelButton.setEnabled(false);
         cancelButton.setVisible(false);
         GridData cancelData = new GridData(SWT.END, SWT.CENTER, false, false);
@@ -166,12 +166,12 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         });
 
         statusLabel = new Label(root, SWT.WRAP);
-        statusLabel.setText("Loading authorized repositories...");
+        setStatus("Loading authorized repositories...");
         statusLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         if (new org.cda.archi.githubworkspace.services.WorkspaceService(preferences)
                 .hasLegacyGovernanceWorkspace()) {
-            statusLabel.setText("A legacy Governance workspace exists and will not be changed. "
-                    + "Loading configured repositories...");
+            setStatus("A legacy Governance workspace exists and will not be changed. "
+                    + "Loading configured repositories.");
         }
 
         scroller = new ScrolledComposite(root, SWT.V_SCROLL);
@@ -201,10 +201,12 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         Button help = new Button(bar, SWT.PUSH);
         Image helpImage = Dialog.getImage(Dialog.DLG_IMG_HELP);
         if (helpImage != null) help.setImage(helpImage);
-        else help.setText("?");
-        help.setToolTipText("View Log");
+        else help.setText(LocalizationService.text("?"));
+        help.setToolTipText(LocalizationService.text("View Log"));
         help.getAccessible().addAccessibleListener(new AccessibleAdapter() {
-            @Override public void getName(AccessibleEvent event) { event.result = "View Log"; }
+            @Override public void getName(AccessibleEvent event) {
+                event.result = LocalizationService.text("View Log");
+            }
         });
         help.addListener(SWT.Selection, event -> {
             PluginLog.info("Browse", "Opened the log viewer.");
@@ -217,23 +219,20 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     public void showGitStatus(GitConfiguration configuration) {
         if (statusLabel == null || statusLabel.isDisposed()) return;
         if (!configuration.isAvailable()) {
-            statusLabel.setText(configuration.getMessage());
+            setStatus(configuration.getMessage());
         } else if (!configuration.hasCredentialHelper()) {
-            statusLabel.setText("Git is available, but no Git credential helper is configured.");
+            setStatus("Git is available, but no Git credential helper is configured.");
         }
     }
 
     public void setAuthenticationStatus(AuthenticationStatus status) {
-        if (accountLabel == null || accountLabel.isDisposed()) return;
+        if (retryButton == null || retryButton.isDisposed()) return;
         authenticated = status.isAuthenticated();
         connectedLogin = status.isAuthenticated() ? status.getUser().getLogin() : "";
-        accountLabel.setText(status.isAuthenticated()
-                ? "Connected as " + status.getUser().getLogin()
-                : status.getMessage());
         boolean canRetry = status.getState() == AuthenticationStatus.State.FAILED;
         retryButton.setVisible(canRetry);
         ((GridData) retryButton.getLayoutData()).exclude = !canRetry;
-        accountLabel.getParent().layout(true, true);
+        retryButton.getParent().layout(true, true);
         retryButton.setEnabled(!busy);
         refreshButton.setEnabled(!busy);
     }
@@ -249,11 +248,13 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             cancelButton.getParent().layout(true, true);
         }
         cards.values().forEach(card -> card.setBusy(busy));
-        if (busy && statusLabel != null && !statusLabel.isDisposed()) statusLabel.setText(message);
+        if (busy && statusLabel != null && !statusLabel.isDisposed()) {
+            setStatus(message);
+        }
     }
 
     public void showProgress(String message) {
-        if (statusLabel != null && !statusLabel.isDisposed()) statusLabel.setText(message);
+        setStatus(message);
     }
 
     public void showRepositories(RepositorySearchResult result) {
@@ -265,9 +266,8 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             if (listener != null) listener.requestLocalPlans(repository);
         }
         layoutCatalog();
-        statusLabel.setText(repositories.size() == 1
-                ? "1 repository found"
-                : repositories.size() + " repositories found");
+        setStatus(repositories.size() == 1
+                ? "1 repository found" : LocalizationService.format("{0} repositories found", repositories.size()));
         applyFilter();
         scheduleVisibleThumbnails();
     }
@@ -298,16 +298,14 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
     }
 
     public void showError(String message) {
-        setErrorMessage(message);
-        if (statusLabel != null && !statusLabel.isDisposed()) statusLabel.setText(message);
+        setErrorMessage(LocalizationService.text(message));
+        setStatus(message);
     }
 
     public void showAuthenticationFailure(String message) {
-        if (accountLabel != null && !accountLabel.isDisposed()) {
-            setAuthenticationStatus(new AuthenticationStatus(
-                    AuthenticationStatus.State.FAILED, message, null));
-        }
-        showError("Could not connect to GitHub. " + message);
+        setAuthenticationStatus(new AuthenticationStatus(
+                AuthenticationStatus.State.FAILED, message, null));
+        showError(LocalizationService.format("Could not connect to GitHub. {0}", message));
     }
 
     public void showCancelled() {
@@ -322,20 +320,53 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         try {
             String organization = preferences.getOrganization();
             String topic = preferences.getTopic();
+            String language = preferences.getLanguage();
             java.nio.file.Path workspace = preferences.getWorkspaceRoot();
             int result = PreferencesUtil.createPreferenceDialogOn(getShell(),
                     GitHubWorkspacePreferencePage.PAGE_ID, null, null).open();
             boolean changed = !organization.equals(preferences.getOrganization())
                     || !topic.equals(preferences.getTopic())
                     || !workspace.equals(preferences.getWorkspaceRoot());
+            boolean languageChanged = !language.equals(preferences.getLanguage());
+            if (languageChanged) relocalize();
             if (changed && listener != null) {
                 search.setText("");
                 listener.refresh();
             } else if (result == Window.OK) {
-                setMessage("Preferences saved.");
+                setMessage(LocalizationService.text("Preferences saved."));
             }
         } catch (RuntimeException ex) {
-            showError("Could not open GitHub Workspace Preferences.");
+            showError(LocalizationService.text("Could not open GitHub Workspace Preferences."));
+        }
+    }
+
+    private void relocalize() {
+        setTitle(LocalizationService.text("Browse Repositories"));
+        setMessage(LocalizationService.text("Repositories in the organization and topic configured in Preferences."));
+        if (search != null && !search.isDisposed()) search.setMessage(LocalizationService.text("Filter repositories..."));
+        if (refreshButton != null && !refreshButton.isDisposed()) refreshButton.setText(LocalizationService.text("Refresh"));
+        if (preferencesButton != null && !preferencesButton.isDisposed()) {
+            preferencesButton.setText(LocalizationService.text("Preferences"));
+        }
+        if (retryButton != null && !retryButton.isDisposed()) retryButton.setText(LocalizationService.text("Retry Connection"));
+        if (cancelButton != null && !cancelButton.isDisposed()) cancelButton.setText(LocalizationService.text("Cancel"));
+        if (statusLabel != null && !statusLabel.isDisposed()) setStatus(statusMessage);
+        if (refreshButton != null && !refreshButton.isDisposed()) refreshButton.setToolTipText(
+                LocalizationService.text("Refresh repositories using the saved organization and topic."));
+        if (preferencesButton != null && !preferencesButton.isDisposed()) preferencesButton.setToolTipText(
+                LocalizationService.text("Edit repository filters and workspace location."));
+        if (retryButton != null && !retryButton.isDisposed()) retryButton.setToolTipText(
+                LocalizationService.text("Retry authentication with Git Credential Manager."));
+        if (cancelButton != null && !cancelButton.isDisposed()) cancelButton.setToolTipText(
+                LocalizationService.text("Cancel the current operation."));
+        for (RepositoryCard card : cards.values()) card.relocalize();
+        if (getShell() != null && !getShell().isDisposed()) getShell().layout(true, true);
+    }
+
+    private void setStatus(String message) {
+        statusMessage = message == null ? "" : message;
+        if (statusLabel != null && !statusLabel.isDisposed()) {
+            statusLabel.setText(LocalizationService.text(statusMessage));
         }
     }
 
@@ -412,7 +443,11 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
         private final Button cloneButton;
         private final List<Button> openButtons = new ArrayList<>();
         private final Label plansSummary;
+        private List<String> localPlans = List.of();
         private final Font repositoryNameFont;
+        private final Label descriptionLabel;
+        private final Label visibilityLabel;
+        private final MenuItem viewItem;
         private Image image;
 
         private RepositoryCard(Composite parent, GitHubRepository repository) {
@@ -445,7 +480,7 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                     event.gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_NORMAL_SHADOW));
                     event.gc.drawRoundRectangle(0, 0, width, height, 12, 12);
                     event.gc.setForeground(getDisplay().getSystemColor(SWT.COLOR_WIDGET_DARK_SHADOW));
-                    String placeholder = "Preview unavailable";
+                    String placeholder = LocalizationService.text("Preview unavailable");
                     org.eclipse.swt.graphics.Point extent = event.gc.textExtent(placeholder);
                     event.gc.drawString(placeholder, (bounds.width - extent.x) / 2,
                             (bounds.height - extent.y) / 2, true);
@@ -466,20 +501,20 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             repositoryNameFont = new Font(getDisplay(), fontData);
             name.setFont(repositoryNameFont);
             name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-            Label description = new Label(details, SWT.WRAP);
-            description.setText(repository.getDescription().isBlank()
-                    ? "No description" : repository.getDescription());
-            description.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+            descriptionLabel = new Label(details, SWT.WRAP);
+            descriptionLabel.setText(repository.getDescription().isBlank()
+                    ? LocalizationService.text("No description") : repository.getDescription());
+            descriptionLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
             Composite metadata = new Composite(details, SWT.NONE);
             metadata.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
             GridLayout metadataLayout = new GridLayout(2, false);
             metadataLayout.marginWidth = 0;
             metadataLayout.marginHeight = 0;
             metadata.setLayout(metadataLayout);
-            Label visibility = new Label(metadata, SWT.NONE);
-            visibility.setText((repository.isPrivate() ? "Private" : "Public")
+            visibilityLabel = new Label(metadata, SWT.NONE);
+            visibilityLabel.setText(LocalizationService.text(repository.isPrivate() ? "Private" : "Public")
                     + "  ·  " + repository.getDefaultBranch());
-            visibility.setToolTipText("Visibility and default branch");
+            visibilityLabel.setToolTipText(LocalizationService.text("Visibility and default branch"));
 
             planList = new Composite(details, SWT.NONE);
             planList.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -500,8 +535,9 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             actionsLayout.verticalSpacing = 4;
             actions.setLayout(actionsLayout);
             cloneButton = new Button(actions, SWT.PUSH);
-            cloneButton.setText("Clone");
-            cloneButton.setToolTipText("Choose a local branch name and clone this repository from its default branch.");
+            cloneButton.setText(LocalizationService.text("Clone"));
+            cloneButton.setToolTipText(LocalizationService.text(
+                    "Choose a local branch name and clone this repository from its default branch."));
             cloneButton.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
             cloneButton.addListener(SWT.Selection, event -> {
                 if (busy) return;
@@ -521,8 +557,8 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
                 }
             });
             Menu menu = new Menu(this);
-            MenuItem viewItem = new MenuItem(menu, SWT.PUSH);
-            viewItem.setText("View on GitHub");
+            viewItem = new MenuItem(menu, SWT.PUSH);
+            viewItem.setText(LocalizationService.text("View on GitHub"));
             viewItem.addListener(SWT.Selection, event -> {
                 if (!busy && listener != null) listener.viewOnGithub(repository);
             });
@@ -530,21 +566,38 @@ public final class RepositoryBrowserView extends TitleAreaDialog {
             thumbnail.setMenu(menu);
             details.setMenu(menu);
             name.setMenu(menu);
-            description.setMenu(menu);
+            descriptionLabel.setMenu(menu);
             metadata.setMenu(menu);
         }
 
+        private void relocalize() {
+            if (isDisposed()) return;
+            descriptionLabel.setText(repository.getDescription().isBlank()
+                    ? LocalizationService.text("No description") : repository.getDescription());
+            visibilityLabel.setText(LocalizationService.text(repository.isPrivate() ? "Private" : "Public")
+                    + "  ·  " + repository.getDefaultBranch());
+            visibilityLabel.setToolTipText(LocalizationService.text("Visibility and default branch"));
+            cloneButton.setText(LocalizationService.text("Clone"));
+            cloneButton.setToolTipText(LocalizationService.text(
+                    "Choose a local branch name and clone this repository from its default branch."));
+            viewItem.setText(LocalizationService.text("View on GitHub"));
+            setPlans(localPlans);
+        }
+
         private void setPlans(List<String> plans) {
+            localPlans = List.copyOf(plans);
             for (Button button : openButtons) if (!button.isDisposed()) button.dispose();
             openButtons.clear();
             if (!plans.isEmpty()) {
-                plansSummary.setText("Local branches (" + plans.size() + "): " + String.join(", ", plans));
+                plansSummary.setText(LocalizationService.format(
+                        "Local branches ({0}): {1}", plans.size(), String.join(", ", plans)));
                 plansSummary.setVisible(true);
                 ((GridData) plansSummary.getLayoutData()).exclude = false;
                 for (String plan : plans) {
                     Button open = new Button(actions, SWT.PUSH);
-                    open.setText("Open " + plan);
-                    open.setToolTipText("Open the local workspace for branch " + plan + ".");
+                    open.setText(LocalizationService.format("Open {0}", plan));
+                    open.setToolTipText(LocalizationService.format(
+                            "Open the local workspace for branch {0}.", plan));
                     open.setEnabled(!busy);
                     open.addListener(SWT.Selection, event -> {
                         if (!busy && listener != null) listener.openModel(repository, plan);

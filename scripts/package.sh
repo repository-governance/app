@@ -11,7 +11,7 @@ JAR="$DIST/github-workspace-$VERSION.jar"
 ARCHIPLUGIN="$DIST/github-workspace-$VERSION.archiplugin"
 rm -f "$JAR" "$ARCHIPLUGIN"
 jar --create --file "$JAR" --manifest "$ROOT/build/bundle/META-INF/MANIFEST.MF" \
-  -C "$ROOT/build/bundle" plugin.xml icons \
+  -C "$ROOT/build/bundle" plugin.xml plugin.properties plugin_es.properties icons \
   -C "$ROOT/build/classes" .
 printf '%s\n' 'Magic file to signify this is an Archi plug-in bundle.' > "$ROOT/build/archi-plugin"
 (

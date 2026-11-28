@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.cda.archi.githubworkspace.infrastructure.PluginLog;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.cda.archi.githubworkspace.models.DataRecord;
 import org.cda.archi.githubworkspace.models.TableSchema;
 import org.eclipse.jface.dialogs.Dialog;
@@ -94,7 +95,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
     @Override protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("GitHub Workspace");
+        shell.setText(LocalizationService.text("GitHub Workspace"));
         try (InputStream stream = DataManagerDialog.class.getResourceAsStream("/icons/database.png")) {
             if (stream != null) windowIcon = new Image(shell.getDisplay(), stream);
         } catch (IOException ignored) { }
@@ -107,14 +108,14 @@ public final class DataManagerDialog extends TitleAreaDialog {
     }
 
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle("Data Manager");
-        setMessage("Manage table schemas and JSON records in the configured GitHub repository.");
+        setTitle(LocalizationService.text("Data Manager"));
+        setMessage(LocalizationService.text("Manage table schemas and JSON records in the configured GitHub repository."));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite root = new Composite(area, SWT.NONE);
         root.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         root.setLayout(new GridLayout(1, false));
         status = new Label(root, SWT.WRAP);
-        status.setText("Loading tables from the configured data repository...");
+        status.setText(LocalizationService.text("Loading tables from the configured data repository..."));
         status.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         SashForm sash = new SashForm(root, SWT.HORIZONTAL);
         sash.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -136,8 +137,8 @@ public final class DataManagerDialog extends TitleAreaDialog {
         Button help = new Button(bar, SWT.PUSH);
         Image helpImage = Dialog.getImage(Dialog.DLG_IMG_HELP);
         if (helpImage != null) help.setImage(helpImage);
-        else help.setText("?");
-        help.setToolTipText("View Log");
+        else help.setText(LocalizationService.text("?"));
+        help.setToolTipText(LocalizationService.text("View Log"));
         help.getAccessible().addAccessibleListener(new AccessibleAdapter() {
             @Override public void getName(AccessibleEvent event) { event.result = "View Log"; }
         });
@@ -149,7 +150,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
         Composite spacer = new Composite(bar, SWT.NONE);
         spacer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        Button close = createButton(bar, IDialogConstants.CLOSE_ID, "Close", true);
+        Button close = createButton(bar, IDialogConstants.CLOSE_ID, LocalizationService.text("Close"), true);
         close.setLayoutData(new GridData(SWT.END, SWT.CENTER, false, false));
         return bar;
     }
@@ -164,14 +165,14 @@ public final class DataManagerDialog extends TitleAreaDialog {
         publicDataRepository = !isPrivate;
         allSchemas = List.copyOf(values);
         tables.setInput(allSchemas);
-        String privacy = isPrivate ? ""
-                : " Warning: Data Repository is public; do not store sensitive or personal data.";
+        String privacy = isPrivate ? "" : " " + LocalizationService.text(
+                "Warning: Data Repository is public; do not store sensitive or personal data.");
         if (allSchemas.isEmpty()) {
             status.setText(emptyRepository
-                    ? "The data repository is empty. Use New Table to initialize it with your first table." + privacy
-                    : "No tables found. Use New Table to create the first one." + privacy);
+                    ? LocalizationService.text("The data repository is empty. Use New Table to initialize it with your first table.") + privacy
+                    : LocalizationService.text("No tables found. Use New Table to create the first one.") + privacy);
         } else {
-            status.setText("Loaded " + allSchemas.size() + " table(s)." + privacy);
+            status.setText(LocalizationService.format("Loaded {0} table(s).", allSchemas.size()) + privacy);
         }
         rootLayout();
     }
@@ -199,7 +200,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     public void setBusy(boolean busy, String message) {
         if (status == null || status.isDisposed()) return;
         busyState = busy;
-        if (message != null && !message.isBlank()) status.setText(message);
+        if (message != null && !message.isBlank()) status.setText(LocalizationService.text(message));
         if (newRecord != null && !newRecord.isDisposed()) newRecord.setEnabled(!busy && selectedSchema != null);
         if (editRecord != null && !editRecord.isDisposed()) editRecord.setEnabled(!busy && selectedRecord() != null);
         if (deleteRecord != null && !deleteRecord.isDisposed()) deleteRecord.setEnabled(!busy && selectedRecord() != null);
@@ -215,7 +216,8 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
     public void showError(String message) {
         if (status != null && !status.isDisposed()) {
-            status.setText((message == null || message.isBlank() ? "The operation failed." : message)
+            status.setText((message == null || message.isBlank()
+                    ? LocalizationService.text("The operation failed.") : LocalizationService.text(message))
                     + privacyWarning());
             rootLayout();
         }
@@ -223,29 +225,29 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
     public void showNotice(String message) {
         if (status != null && !status.isDisposed()) {
-            status.setText(message + privacyWarning());
+            status.setText(LocalizationService.text(message) + privacyWarning());
             rootLayout();
         }
     }
 
     private String privacyWarning() {
-        return publicDataRepository
-                ? " Warning: Data Repository is public; do not store sensitive or personal data." : "";
+        return publicDataRepository ? " " + LocalizationService.text(
+                "Warning: Data Repository is public; do not store sensitive or personal data.") : "";
     }
 
     private void createLeft(Composite parent) {
         Composite panel = new Composite(parent, SWT.NONE);
         panel.setLayout(new GridLayout(1, false));
         Label heading = new Label(panel, SWT.NONE);
-        heading.setText("TABLES");
+        heading.setText(LocalizationService.text("TABLES"));
         Composite search = new Composite(panel, SWT.NONE);
         search.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         search.setLayout(new GridLayout(2, false));
         searchTables = new Text(search, SWT.BORDER | SWT.SEARCH | SWT.ICON_SEARCH | SWT.CANCEL);
-        searchTables.setMessage("Search tables");
+        searchTables.setMessage(LocalizationService.text("Search tables"));
         searchTables.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         refreshTables = new Button(search, SWT.PUSH);
-        refreshTables.setText("Refresh");
+        refreshTables.setText(LocalizationService.text("Refresh"));
         refreshTables.addListener(SWT.Selection, event -> { if (listener != null) listener.refresh(); });
         tables = new TableViewer(panel, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE);
         tables.setContentProvider(ArrayContentProvider.getInstance());
@@ -267,7 +269,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
             if (selected instanceof TableSchema schema && listener != null) listener.selectTable(schema);
         });
         newTable = new Button(panel, SWT.PUSH);
-        newTable.setText("New Table");
+        newTable.setText(LocalizationService.text("New Table"));
         newTable.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         newTable.addListener(SWT.Selection, event -> new CreateTableDialog(getShell(),
                 allSchemas.stream().map(TableSchema::name).collect(java.util.stream.Collectors.toSet()),
@@ -278,32 +280,33 @@ public final class DataManagerDialog extends TitleAreaDialog {
         Composite panel = new Composite(parent, SWT.NONE);
         panel.setLayout(new GridLayout(1, false));
         tableDescription = new Label(panel, SWT.WRAP);
-        tableDescription.setText("Select a table to view its records.");
+        tableDescription.setText(LocalizationService.text("Select a table to view its records."));
         tableDescription.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         TabFolder tabs = new TabFolder(panel, SWT.NONE);
         tabs.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         TabItem recordsTab = new TabItem(tabs, SWT.NONE);
-        recordsTab.setText("Records");
+        recordsTab.setText(LocalizationService.text("Records"));
         Composite recordPanel = new Composite(tabs, SWT.NONE);
         recordPanel.setLayout(new GridLayout(1, false));
         recordsTab.setControl(recordPanel);
 
         TabItem schemaTab = new TabItem(tabs, SWT.NONE);
-        schemaTab.setText("Schema");
+        schemaTab.setText(LocalizationService.text("Schema"));
         Composite schemaPanel = new Composite(tabs, SWT.NONE);
         schemaPanel.setLayout(new GridLayout(1, false));
         schemaTab.setControl(schemaPanel);
 
         Label schemaIntro = new Label(schemaPanel, SWT.WRAP);
-        schemaIntro.setText("Review and edit this table's structure. Renaming moves the schema and records together.");
+        schemaIntro.setText(LocalizationService.text(
+                "Review and edit this table's structure. Renaming moves the schema and records together."));
         schemaIntro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         ToolBar schemaToolbar = new ToolBar(schemaPanel, SWT.FLAT | SWT.RIGHT);
         schemaToolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        schemaButton = toolItem(schemaToolbar, "View Schema JSON", () -> {
+        schemaButton = toolItem(schemaToolbar, LocalizationService.text("View Schema JSON"), () -> {
             if (selectedSchema != null) new SchemaViewerDialog(getShell(), selectedSchema).open();
         });
-        editSchemaButton = toolItem(schemaToolbar, "Edit Schema", () -> {
+        editSchemaButton = toolItem(schemaToolbar, LocalizationService.text("Edit Schema"), () -> {
             TableSchema original = selectedSchema;
             if (original == null) return;
             new CreateTableDialog(getShell(),
@@ -327,26 +330,26 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
         ToolBar toolbar = new ToolBar(recordPanel, SWT.FLAT | SWT.RIGHT);
         toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        newRecord = toolItem(toolbar, "New Record", () -> {
+        newRecord = toolItem(toolbar, LocalizationService.text("New Record"), () -> {
             if (selectedSchema != null) new RecordEditorDialog(getShell(), selectedSchema, null,
                     values -> { if (listener != null) listener.createRecord(selectedSchema, values); }).open();
         });
-        editRecord = toolItem(toolbar, "Edit Record", this::editSelected);
-        deleteRecord = toolItem(toolbar, "Delete Record", this::deleteSelected);
+        editRecord = toolItem(toolbar, LocalizationService.text("Edit Record"), this::editSelected);
+        deleteRecord = toolItem(toolbar, LocalizationService.text("Delete Record"), this::deleteSelected);
         refreshRecords = toolItem(toolbar, "Refresh", () -> {
             if (selectedSchema != null && listener != null) listener.selectTable(selectedSchema);
             else if (listener != null) listener.refresh();
         });
-        refreshRecords.setToolTipText("Reload tables and selected records");
+        refreshRecords.setToolTipText(LocalizationService.text("Reload tables and selected records"));
         Composite recordOptions = new Composite(recordPanel, SWT.NONE);
         recordOptions.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         recordOptions.setLayout(new GridLayout(2, false));
         searchRecords = new Text(recordOptions, SWT.BORDER | SWT.SEARCH | SWT.ICON_SEARCH | SWT.CANCEL);
-        searchRecords.setMessage("Search records");
+        searchRecords.setMessage(LocalizationService.text("Search records"));
         searchRecords.setLayoutData(new GridData(170, SWT.DEFAULT));
         searchRecords.addModifyListener(event -> filterRecords());
         count = new Label(recordOptions, SWT.NONE);
-        count.setText("0 records");
+        count.setText(LocalizationService.text("0 records"));
         records = new TableViewer(recordPanel, SWT.BORDER | SWT.FULL_SELECTION | SWT.SINGLE | SWT.V_SCROLL | SWT.H_SCROLL);
         records.setContentProvider(ArrayContentProvider.getInstance());
         records.getTable().setHeaderVisible(true);
@@ -382,7 +385,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     private static void schemaColumn(TableViewer viewer, String title, int width,
             java.util.function.Function<org.cda.archi.githubworkspace.models.ColumnDefinition, String> text) {
         TableViewerColumn column = new TableViewerColumn(viewer, SWT.LEFT);
-        column.getColumn().setText(title);
+        column.getColumn().setText(LocalizationService.text(title));
         column.getColumn().setWidth(width);
         column.setLabelProvider(new ColumnLabelProvider() {
             @Override public String getText(Object element) {
@@ -414,8 +417,9 @@ public final class DataManagerDialog extends TitleAreaDialog {
         DataRecord record = selectedRecord();
         if (record == null) return;
         String key = record.primaryKey(selectedSchema);
-        if (MessageDialog.openConfirm(getShell(), "Delete Record",
-                "Delete record " + selectedSchema.name() + "/" + key + "? This cannot be undone.")) {
+        if (MessageDialog.openConfirm(getShell(), LocalizationService.text("Delete Record"),
+                LocalizationService.format("Delete record {0}/{1}? This cannot be undone.",
+                        selectedSchema.name(), key))) {
             if (listener != null) listener.deleteRecord(selectedSchema, record);
         }
     }
@@ -428,7 +432,8 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
     private void updateRecordCount() { updateRecordCount(allRecords.size()); }
     private void updateRecordCount(int number) {
-        if (count != null && !count.isDisposed()) count.setText(number + (number == 1 ? " record" : " records"));
+        if (count != null && !count.isDisposed()) count.setText(LocalizationService.format(
+                number == 1 ? "{0} record" : "{0} records", number));
         if (newRecord != null && !newRecord.isDisposed()) newRecord.setEnabled(!busyState && selectedSchema != null);
     }
 
@@ -438,14 +443,14 @@ public final class DataManagerDialog extends TitleAreaDialog {
 
     private static Button button(Composite parent, String title, Runnable action) {
         Button button = new Button(parent, SWT.PUSH);
-        button.setText(title);
+        button.setText(LocalizationService.text(title));
         button.addListener(SWT.Selection, event -> action.run());
         return button;
     }
 
     private static ToolItem toolItem(ToolBar parent, String title, Runnable action) {
         ToolItem item = new ToolItem(parent, SWT.PUSH);
-        item.setText(title);
+        item.setText(LocalizationService.text(title));
         item.addListener(SWT.Selection, event -> action.run());
         return item;
     }
@@ -453,7 +458,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     private static void tableColumn(TableViewer viewer, String title, int width,
             java.util.function.Function<Object, String> text) {
         TableViewerColumn column = new TableViewerColumn(viewer, SWT.LEFT);
-        column.getColumn().setText(title);
+        column.getColumn().setText(LocalizationService.text(title));
         column.getColumn().setWidth(width);
         column.setLabelProvider(new ColumnLabelProvider() {
             @Override public String getText(Object element) { return text.apply(element); }

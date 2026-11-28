@@ -7,6 +7,7 @@ import java.util.List;
 import org.cda.archi.githubworkspace.models.GitHubRepository;
 import org.cda.archi.githubworkspace.models.RepositoryTemplateFolder;
 import org.cda.archi.githubworkspace.infrastructure.PluginLog;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
@@ -64,7 +65,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
     @Override
     protected void configureShell(Shell shell) {
         super.configureShell(shell);
-        shell.setText("GitHub Workspace");
+        shell.setText(LocalizationService.text("GitHub Workspace"));
         try (InputStream stream = RepositoryManagementView.class.getResourceAsStream("/icons/repository.png")) {
             if (stream != null) {
                 windowIcon = new Image(shell.getDisplay(), stream);
@@ -82,9 +83,9 @@ public final class RepositoryManagementView extends TitleAreaDialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        setTitle("Management Repositories");
-        setMessage("Repositories tagged with the default topic \""
-                + org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC + "\".");
+        setTitle(LocalizationService.text("Management Repositories"));
+        setMessage(LocalizationService.format("Repositories tagged with the default topic \"{0}\".",
+                org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -94,15 +95,15 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         toolbar.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         toolbar.setLayout(new GridLayout(3, false));
         status = new Label(toolbar, SWT.WRAP);
-        status.setText("Connecting to GitHub...");
+        status.setText(LocalizationService.text("Connecting to GitHub..."));
         status.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         refresh = new Button(toolbar, SWT.PUSH);
-        refresh.setText("Refresh");
+        refresh.setText(LocalizationService.text("Refresh"));
         refresh.addListener(SWT.Selection, event -> {
             if (listener != null) listener.refresh();
         });
         create = new Button(toolbar, SWT.PUSH);
-        create.setText("Create Repository...");
+        create.setText(LocalizationService.text("Create Repository..."));
         create.addListener(SWT.Selection, event -> {
             if (listener != null) listener.requestCreate();
         });
@@ -115,13 +116,13 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         addColumn("Description", 380);
         addColumn("Visibility", 100);
         addColumn("Default branch", 150);
-        setBusy(true, "Connecting to GitHub...");
+        setBusy(true, LocalizationService.text("Connecting to GitHub..."));
         return area;
     }
 
     private void addColumn(String title, int width) {
         TableColumn column = new TableColumn(repositories, SWT.LEFT);
-        column.setText(title);
+        column.setText(LocalizationService.text(title));
         column.setWidth(width);
     }
 
@@ -139,8 +140,9 @@ public final class RepositoryManagementView extends TitleAreaDialog {
             });
             item.setData(repository);
         }
-        status.setText(items.size() + (items.size() == 1 ? " repository tagged " : " repositories tagged ")
-                + org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC + " in " + organization);
+        status.setText(LocalizationService.format(items.size() == 1
+                ? "{0} repository tagged {1} in {2}" : "{0} repositories tagged {1} in {2}",
+                items.size(), org.cda.archi.githubworkspace.services.PreferencesService.DEFAULT_TOPIC, organization));
         repositories.getParent().layout(true, true);
     }
 
@@ -159,19 +161,21 @@ public final class RepositoryManagementView extends TitleAreaDialog {
 
     public void setBusy(boolean busy, String message) {
         if (status == null || status.isDisposed()) return;
-        if (message != null && !message.isBlank()) status.setText(message);
+        if (message != null && !message.isBlank()) status.setText(LocalizationService.text(message));
         if (refresh != null && !refresh.isDisposed()) refresh.setEnabled(!busy);
         if (create != null && !create.isDisposed()) create.setEnabled(!busy);
     }
 
     public void showError(String message) {
-        setErrorMessage(message);
-        if (status != null && !status.isDisposed()) status.setText("Could not complete repository management.");
+        setErrorMessage(LocalizationService.text(message));
+        if (status != null && !status.isDisposed()) {
+            status.setText(LocalizationService.text("Could not complete repository management."));
+        }
     }
 
     public void showNotice(String message) {
         setErrorMessage(null);
-        if (status != null && !status.isDisposed()) status.setText(message);
+        if (status != null && !status.isDisposed()) status.setText(LocalizationService.text(message));
     }
 
     @Override
@@ -187,10 +191,10 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         Button help = new Button(bar, SWT.PUSH);
         Image helpImage = Dialog.getImage(Dialog.DLG_IMG_HELP);
         if (helpImage != null) help.setImage(helpImage);
-        else help.setText("?");
-        help.setToolTipText("View Log");
+        else help.setText(LocalizationService.text("?"));
+        help.setToolTipText(LocalizationService.text("View Log"));
         help.getAccessible().addAccessibleListener(new AccessibleAdapter() {
-            @Override public void getName(AccessibleEvent event) { event.result = "View Log"; }
+            @Override public void getName(AccessibleEvent event) { event.result = LocalizationService.text("View Log"); }
         });
         help.addListener(SWT.Selection, event -> {
             PluginLog.info("Repository Management", "Opened the log viewer.");
@@ -201,7 +205,7 @@ public final class RepositoryManagementView extends TitleAreaDialog {
         Composite spacer = new Composite(bar, SWT.NONE);
         spacer.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-        Button close = createButton(bar, IDialogConstants.CLOSE_ID, "Close", false);
+        Button close = createButton(bar, IDialogConstants.CLOSE_ID, LocalizationService.text("Close"), false);
         close.setLayoutData(new GridData(SWT.END, SWT.CENTER, false, false));
         return bar;
     }

@@ -6,6 +6,7 @@ import java.util.function.Consumer;
 import org.cda.archi.githubworkspace.models.ColumnDefinition;
 import org.cda.archi.githubworkspace.models.DataType;
 import org.cda.archi.githubworkspace.services.TableSchemaService;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
@@ -38,42 +39,44 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
     }
 
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle(initial == null ? "Add Column" : "Edit Column");
+        setTitle(LocalizationService.text(initial == null ? "Add Column" : "Edit Column"));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         content.setLayout(new GridLayout(2, false));
-        new Label(content, SWT.NONE).setText("Column Name:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Column Name:"));
         name = new Text(content, SWT.BORDER);
         name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        new Label(content, SWT.NONE).setText("Data Type:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Data Type:"));
         type = new Combo(content, SWT.DROP_DOWN | SWT.READ_ONLY);
         type.setItems(java.util.Arrays.stream(DataType.values())
                 .map(TableSchemaService::displayType).toArray(String[]::new));
         type.select(0);
         type.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         primary = new Button(content, SWT.CHECK);
-        primary.setText("Primary Key");
+        primary.setText(LocalizationService.text("Primary Key"));
         primary.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         required = new Button(content, SWT.CHECK);
-        required.setText("Required");
+        required.setText(LocalizationService.text("Required"));
         required.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         primary.addListener(SWT.Selection, e -> {
             if (primary.getSelection()) required.setSelection(true);
         });
         regexEnabled = new Button(content, SWT.CHECK);
-        regexEnabled.setText("Validate with regular expression");
+        regexEnabled.setText(LocalizationService.text("Validate with regular expression"));
         regexEnabled.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-        new Label(content, SWT.NONE).setText("Regex Pattern:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Regex Pattern:"));
         pattern = new Text(content, SWT.BORDER);
-        pattern.setMessage("Example: ^[A-Z]{3}-[0-9]{4}$");
-        pattern.setToolTipText("Java regular expression; the complete value must match.");
+        pattern.setMessage(LocalizationService.text("Example: ^[A-Z]{3}-[0-9]{4}$"));
+        pattern.setToolTipText(LocalizationService.text(
+                "Java regular expression; the complete value must match."));
         pattern.setTextLimit(256);
         pattern.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        new Label(content, SWT.NONE).setText("Validation Message:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Validation Message:"));
         validationMessage = new Text(content, SWT.BORDER);
-        validationMessage.setMessage("Shown when the value does not match");
-        validationMessage.setToolTipText("This message appears next to the field when the regex does not match.");
+        validationMessage.setMessage(LocalizationService.text("Shown when the value does not match"));
+        validationMessage.setToolTipText(LocalizationService.text(
+                "This message appears next to the field when the regex does not match."));
         validationMessage.setTextLimit(300);
         validationMessage.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         type.addListener(SWT.Selection, event -> updateRegexControls());
@@ -94,10 +97,13 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
 
     @Override protected void okPressed() {
         try {
-            if (type.getSelectionIndex() < 0) throw new IllegalArgumentException("Choose a data type.");
+            if (type.getSelectionIndex() < 0) {
+                throw new IllegalArgumentException(LocalizationService.text("Choose a data type."));
+            }
             DataType selected = DataType.parse(type.getItem(type.getSelectionIndex()));
             if (selected == DataType.STRING && regexEnabled.getSelection() && pattern.getText().isEmpty()) {
-                throw new IllegalArgumentException("Enter a regular expression pattern or disable regex validation.");
+                throw new IllegalArgumentException(LocalizationService.text(
+                        "Enter a regular expression pattern or disable regex validation."));
             }
             result.accept(new ColumnDefinition(name.getText().trim(), selected,
                     primary.getSelection(), required.getSelection(),
@@ -106,7 +112,7 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
                             ? validationMessage.getText() : ""));
             super.okPressed();
         } catch (IllegalArgumentException ex) {
-            setErrorMessage(ex.getMessage());
+            setErrorMessage(LocalizationService.text(ex.getMessage()));
         }
     }
 

@@ -13,6 +13,7 @@ import java.util.function.Consumer;
 import org.cda.archi.githubworkspace.models.ColumnDefinition;
 import org.cda.archi.githubworkspace.models.DataType;
 import org.cda.archi.githubworkspace.models.TableSchema;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.ScrolledComposite;
 import org.eclipse.swt.layout.GridData;
@@ -100,7 +101,7 @@ public final class DynamicFormRenderer extends Composite {
     private Control createEditor(Composite parent, ColumnDefinition column, Object value) {
         if (column.type() == DataType.BOOLEAN) {
             Button check = new Button(parent, SWT.CHECK);
-            check.setText("Enabled");
+            check.setText(LocalizationService.text("Enabled"));
             check.setGrayed(value == null);
             check.setSelection(Boolean.TRUE.equals(value));
             check.setEnabled(!(editing && column.primaryKey()));
@@ -113,7 +114,7 @@ public final class DynamicFormRenderer extends Composite {
             Composite holder = new Composite(parent, SWT.NONE);
             holder.setLayout(new GridLayout(2, false));
             Button set = new Button(holder, SWT.CHECK);
-            set.setText("Set");
+            set.setText(LocalizationService.text("Set"));
             set.setSelection(value != null);
             int dateStyle = SWT.DATE | SWT.DROP_DOWN;
             if (column.type() == DataType.DATETIME) dateStyle |= SWT.TIME;
@@ -170,7 +171,7 @@ public final class DynamicFormRenderer extends Composite {
             holder.setLayout(new GridLayout(2, false));
             text.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
             Button generate = new Button(holder, SWT.PUSH);
-            generate.setText("Generate");
+            generate.setText(LocalizationService.text("Generate"));
             generate.addListener(SWT.Selection, event -> text.setText(UUID.randomUUID().toString()));
             // The holder is the actual cell control; keep the Text for value extraction.
             valueReaders.put(column.name(), text::getText);
@@ -188,7 +189,7 @@ public final class DynamicFormRenderer extends Composite {
     }
 
     private static String message(DataType type) {
-        return switch (type) {
+        return LocalizationService.text(switch (type) {
             case INTEGER -> "Whole number";
             case DECIMAL -> "Decimal number";
             case DATE -> "YYYY-MM-DD";
@@ -197,12 +198,12 @@ public final class DynamicFormRenderer extends Composite {
             case URL -> "https://";
             case UUID -> "UUID";
             default -> "";
-        };
+        });
     }
 
     private static String validateValue(ColumnDefinition column, String raw) {
         if (raw == null || raw.isBlank()) {
-            return column.required() ? "Required" : null;
+            return column.required() ? LocalizationService.text("Required") : null;
         }
         String text = raw.trim();
         try {
@@ -210,17 +211,23 @@ public final class DynamicFormRenderer extends Composite {
                 case INTEGER -> Integer.parseInt(text);
                 case DECIMAL -> new BigDecimal(text);
                 case BOOLEAN -> {
-                    if (!"true".equalsIgnoreCase(text) && !"false".equalsIgnoreCase(text)) return "Enter true or false.";
+                    if (!"true".equalsIgnoreCase(text) && !"false".equalsIgnoreCase(text)) {
+                        return LocalizationService.text("Enter true or false.");
+                    }
                 }
                 case DATE -> LocalDate.parse(text);
                 case DATETIME -> OffsetDateTime.parse(text);
                 case EMAIL -> {
-                    if (!text.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) return "Enter a valid email address.";
+                    if (!text.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")) {
+                        return LocalizationService.text("Enter a valid email address.");
+                    }
                 }
                 case URL -> {
                     java.net.URI uri = java.net.URI.create(text);
                     if (uri.getHost() == null || !("http".equalsIgnoreCase(uri.getScheme())
-                            || "https".equalsIgnoreCase(uri.getScheme()))) return "Enter an HTTP(S) URL.";
+                            || "https".equalsIgnoreCase(uri.getScheme()))) {
+                        return LocalizationService.text("Enter an HTTP(S) URL.");
+                    }
                 }
                 case UUID -> UUID.fromString(text);
                 case STRING -> {
@@ -230,7 +237,7 @@ public final class DynamicFormRenderer extends Composite {
             }
             return null;
         } catch (RuntimeException ex) {
-            return "Invalid " + column.type().name() + " value.";
+            return LocalizationService.format("Invalid {0} value.", column.type().name());
         }
     }
 }

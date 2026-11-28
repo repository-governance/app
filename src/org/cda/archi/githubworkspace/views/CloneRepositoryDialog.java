@@ -5,6 +5,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 import org.cda.archi.githubworkspace.models.GitHubRepository;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.cda.archi.githubworkspace.services.PreferencesService;
 import org.cda.archi.githubworkspace.services.WorkspaceService;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -44,50 +45,51 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        setTitle("Create Branch Workspace");
-        setMessage("Create a local branch from the selected repository's default branch.");
+        setTitle(LocalizationService.text("Create Branch Workspace"));
+        setMessage(LocalizationService.text("Create a local branch from the selected repository's default branch."));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
         content.setLayout(new GridLayout(2, false));
 
         Label sourceHeading = new Label(content, SWT.NONE);
-        sourceHeading.setText("SOURCE REPOSITORY");
+        sourceHeading.setText(LocalizationService.text("SOURCE REPOSITORY"));
         sourceHeading.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         Label source = new Label(content, SWT.WRAP);
         source.setText(repository.getFullName()
                 + (repository.getDescription().isBlank() ? "" : " — " + repository.getDescription()));
         source.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
-        new Label(content, SWT.NONE).setText("Branch name:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Branch name:"));
         planId = new Text(content, SWT.BORDER);
-        planId.setMessage("D-09999");
-        planId.setToolTipText("This becomes the name of the local branch and workspace folder.");
+        planId.setMessage(LocalizationService.text("D-09999"));
+        planId.setToolTipText(LocalizationService.text("This becomes the name of the local branch and workspace folder."));
         planId.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         planId.addModifyListener(event -> updateDestination());
 
-        new Label(content, SWT.NONE).setText("Solution Architect Code:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Solution Architect Code:"));
         Text architectCode = new Text(content, SWT.BORDER | SWT.READ_ONLY);
-        architectCode.setText(githubLogin.isBlank() ? "Not connected" : githubLogin);
-        architectCode.setToolTipText("GitHub account authenticated with Git Credential Manager.");
+        architectCode.setText(githubLogin.isBlank() ? LocalizationService.text("Not connected") : githubLogin);
+        architectCode.setToolTipText(LocalizationService.text(
+                "GitHub account authenticated with Git Credential Manager."));
         architectCode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
         Label creationModeLabel = new Label(content, SWT.NONE);
-        creationModeLabel.setText("Creation mode:");
+        creationModeLabel.setText(LocalizationService.text("Creation mode:"));
         creationModeLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         Label creationMode = new Label(content, SWT.WRAP);
-        creationMode.setText("Create a local branch from the repository's default branch");
+        creationMode.setText(LocalizationService.text("Create a local branch from the repository's default branch"));
         creationMode.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
         Label resultHeading = new Label(content, SWT.NONE);
-        resultHeading.setText("Result");
+        resultHeading.setText(LocalizationService.text("Result"));
         resultHeading.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
         value(content, "Repository:", repository.getName());
-        new Label(content, SWT.NONE).setText("Branch:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Branch:"));
         branch = new Label(content, SWT.NONE);
-        branch.setText("(enter branch name)");
+        branch.setText(LocalizationService.text("(enter branch name)"));
         branch.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-        new Label(content, SWT.NONE).setText("Local workspace:");
+        new Label(content, SWT.NONE).setText(LocalizationService.text("Local workspace:"));
         destination = new Label(content, SWT.WRAP);
         destination.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         updateDestination();
@@ -96,8 +98,8 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
-        createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
-        createButton(parent, IDialogConstants.OK_ID, "Create Branch Workspace", true);
+        createButton(parent, IDialogConstants.CANCEL_ID, LocalizationService.text("Cancel"), false);
+        createButton(parent, IDialogConstants.OK_ID, LocalizationService.text("Create Branch Workspace"), true);
     }
 
     @Override
@@ -106,11 +108,11 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         try {
             WorkspaceService.validatePlanIdSyntax(value);
             if (repository.getDefaultBranch().isBlank()) {
-                throw new IllegalArgumentException("The repository default branch is unavailable.");
+                throw new IllegalArgumentException(LocalizationService.text("The repository default branch is unavailable."));
             }
             listener.clone(repository, value);
         } catch (IllegalArgumentException ex) {
-            setErrorMessage(ex.getMessage());
+            setErrorMessage(LocalizationService.text(ex.getMessage()));
             return;
         }
         super.okPressed();
@@ -122,19 +124,21 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
         try {
             WorkspaceService workspace = new WorkspaceService(preferences);
             destination.setText(destinationPreview(workspace, repository, value));
-            branch.setText(value.isBlank() ? "(enter branch name)"
-                    : isValidPlanId(value) ? value : "(invalid branch name)");
+            branch.setText(value.isBlank() ? LocalizationService.text("(enter branch name)")
+                    : isValidPlanId(value) ? value : LocalizationService.text("(invalid branch name)"));
             if (value.isBlank()) {
                 setErrorMessage(null);
             } else if (isValidPlanId(value)) {
                 setErrorMessage(null);
             } else {
-                setErrorMessage("Branch name must match D-[0-9]+ (for example, D-09999).");
+                setErrorMessage(LocalizationService.text("Branch name must match D-[0-9]+ (for example, D-09999)."));
             }
         } catch (IOException | InvalidPathException ex) {
-            branch.setText(value.isBlank() ? "(enter branch name)" : "(invalid branch name)");
-            destination.setText("Destination unavailable");
-            setErrorMessage(ex.getMessage() == null ? "The destination path is invalid." : ex.getMessage());
+            branch.setText(value.isBlank() ? LocalizationService.text("(enter branch name)")
+                    : LocalizationService.text("(invalid branch name)"));
+            destination.setText(LocalizationService.text("Destination unavailable"));
+            setErrorMessage(LocalizationService.text(
+                    ex.getMessage() == null ? "The destination path is invalid." : ex.getMessage()));
         }
         destination.getParent().layout(true, true);
     }
@@ -143,12 +147,12 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
             throws IOException {
         Path repositoryPath = workspace.repositoryPath(repository);
         if (planId == null || planId.isBlank()) {
-            return repositoryPath + java.io.File.separator + "(enter branch name)";
+        return repositoryPath + java.io.File.separator + LocalizationService.text("(enter branch name)");
         }
         try {
             return workspace.planPath(repository, planId).toString();
         } catch (IllegalArgumentException ex) {
-            return repositoryPath + java.io.File.separator + "(invalid branch name)";
+            return repositoryPath + java.io.File.separator + LocalizationService.text("(invalid branch name)");
         }
     }
 
@@ -163,9 +167,9 @@ public final class CloneRepositoryDialog extends TitleAreaDialog {
 
     private static void value(Composite parent, String title, String value) {
         Label label = new Label(parent, SWT.NONE);
-        label.setText(title);
+        label.setText(LocalizationService.text(title));
         Label text = new Label(parent, SWT.WRAP);
-        text.setText(value == null || value.isBlank() ? "Not available" : value);
+        text.setText(value == null || value.isBlank() ? LocalizationService.text("Not available") : value);
         text.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
     }
 }

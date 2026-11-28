@@ -24,4 +24,5 @@ cp "$ROOT/icons/github.png" "$ROOT/icons/catalogs.png" "$ROOT/icons/database.png
   "$ROOT/icons/repository.png" "$ROOT/build/bundle/icons/"
 sed "s/@VERSION@/$VERSION/g" "$ROOT/META-INF/MANIFEST.MF" > "$ROOT/build/bundle/META-INF/MANIFEST.MF"
 cp "$ROOT/plugin.xml" "$ROOT/build/bundle/plugin.xml"
+cp "$ROOT/plugin.properties" "$ROOT/plugin_es.properties" "$ROOT/build/bundle/"
 echo "Compiled GitHub Workspace $VERSION against $(wc -l < "$ROOT/build/archi-jars.list" | tr -d ' ') official Archi platform bundles."

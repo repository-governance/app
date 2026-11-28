@@ -39,8 +39,15 @@ public final class CatalogRegressionTests {
                 "src/org/cda/archi/githubworkspace/views/DynamicFormRenderer.java"));
         int assertions = 0;
 
-        assertions += sourceContains(plugin, "name=\"Data Manager...\"",
+        assertions += sourceContains(plugin, "name=\"%command.dataManager.name\"",
                 "Data Manager is contributed under the existing File menu");
+        assertions += sourceContains(
+                root.resolve("plugin_es.properties"), "command.dataManager.name=Administrador de datos...",
+                "Spanish menu labels are defined in the OSGi localization bundle");
+        assertions += sourceContains(
+                root.resolve("src/org/cda/archi/githubworkspace/views/GitHubWorkspacePreferencePage.java"),
+                "language.setItems(LocalizationService.text(\"Automatic (system)\"),",
+                "Preferences exposes automatic, English and Spanish language choices");
         assertions += sourceContains(plugin, "icon=\"icons/database.png\"",
                 "Data Manager menu item uses the dedicated database icon");
         assertions += sourceContains(plugin, "icon=\"icons/repository.png\"",
@@ -62,11 +69,11 @@ public final class CatalogRegressionTests {
                 "Data Manager exposes the shared diagnostic log viewer");
         assertions += sourceContains(dataView, "PluginLog.info(\"Data Manager\", \"Opened the log viewer.\")",
                 "Opening the Data Manager log viewer is included in diagnostics");
-        assertions += sourceContains(dataView, "recordsTab.setText(\"Records\")",
+        assertions += sourceContains(dataView, "recordsTab.setText(LocalizationService.text(\"Records\"))",
                 "Data Manager separates record maintenance into its own tab");
-        assertions += sourceContains(dataView, "schemaTab.setText(\"Schema\")",
+        assertions += sourceContains(dataView, "schemaTab.setText(LocalizationService.text(\"Schema\"))",
                 "Data Manager separates schema maintenance into its own tab");
-        assertions += sourceContains(dataView, "toolItem(schemaToolbar, \"Edit Schema\"",
+        assertions += sourceContains(dataView, "toolItem(schemaToolbar, LocalizationService.text(\"Edit Schema\")",
                 "Schema editing actions are contained in the Schema tab");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateTableDialog.java"),
@@ -103,6 +110,10 @@ public final class CatalogRegressionTests {
                 "Authentication retry reuses the connection flow");
         assertions += sourceContains(view, "status.getState() == AuthenticationStatus.State.FAILED",
                 "Retry action is shown only for a failed connection");
+        if (view.contains("\"Connected as \"")) {
+            throw new AssertionError("The repository browser must not display the authenticated username.");
+        }
+        assertions++;
         assertions += sourceContains(controller, "view.showAuthenticationFailure(errorMessage);",
                 "Authentication errors are presented with an explicit retry state");
         assertions += sourceContains(view, "Could not connect to GitHub. ",
@@ -134,14 +145,16 @@ public final class CatalogRegressionTests {
                 "Branch workspace dialog is explicitly modal");
         assertions += sourceContains(cloneDialog, "setBlockOnOpen(true);",
                 "Branch workspace dialog is opened synchronously from its SWT selection handler");
-        assertions += sourceContains(cloneDialog, "planId.setMessage(\"D-09999\");",
+        assertions += sourceContains(cloneDialog,
+                "planId.setMessage(LocalizationService.text(\"D-09999\"));",
                 "Branch name example remains a hint and is not prefilled");
-        assertions += sourceContains(cloneDialog, "new Label(content, SWT.NONE).setText(\"Branch name:\");",
+        assertions += sourceContains(cloneDialog,
+                "new Label(content, SWT.NONE).setText(LocalizationService.text(\"Branch name:\"));",
                 "The user-facing field identifies the value as a branch name");
         assertions += sourceContains(cloneDialog, "new Text(content, SWT.BORDER | SWT.READ_ONLY)",
                 "Solution Architect Code is read-only");
         assertions += sourceContains(cloneDialog,
-                "architectCode.setText(githubLogin.isBlank() ? \"Not connected\" : githubLogin);",
+                "architectCode.setText(githubLogin.isBlank() ? LocalizationService.text(\"Not connected\") : githubLogin);",
                 "Solution Architect Code is populated from the authenticated GitHub login");
         assertions += sourceContains(cloneDialog,
                 "Create a local branch from the repository's default branch",
@@ -173,7 +186,7 @@ public final class CatalogRegressionTests {
                 "Management Repositories presents the organization list in a grid");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
-                "buildingBlock.setText(\"Building Block\");",
+                "buildingBlock.setText(LocalizationService.text(\"Building Block\"));",
                 "Repository creation fields are grouped under Building Block");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/CreateRepositoryDialog.java"),
@@ -204,11 +217,12 @@ public final class CatalogRegressionTests {
                 "Repository catalog customizes the bottom button bar");
         assertions += sourceContains(view, "Dialog.getImage(Dialog.DLG_IMG_HELP)",
                 "Repository catalog help icon opens the diagnostic log");
-        assertions += sourceContains(view, "shell.setText(\"GitHub Workspace\");",
+        assertions += sourceContains(view,
+                "shell.setText(LocalizationService.text(\"GitHub Workspace\"));",
                 "Browse dialog title uses the plugin name without repeating the inner heading");
         assertions += sourceContains(
                 root.resolve("src/org/cda/archi/githubworkspace/views/RepositoryManagementView.java"),
-                "shell.setText(\"GitHub Workspace\");",
+                "shell.setText(LocalizationService.text(\"GitHub Workspace\"));",
                 "Management dialog title uses the plugin name");
         assertions += sourceContains(view, "cancelButton.setVisible(false);",
                 "Cancel is hidden outside a cancelable operation");
@@ -240,7 +254,8 @@ public final class CatalogRegressionTests {
                 root.resolve("src/org/cda/archi/githubworkspace/views/PluginLogDialog.java"),
                 "SWT.MULTI | SWT.BORDER | SWT.READ_ONLY | SWT.V_SCROLL | SWT.H_SCROLL",
                 "View Log displays all persisted trace lines in a scrollable multiline field");
-        assertions += sourceContains(view, "String placeholder = \"Preview unavailable\";",
+        assertions += sourceContains(view,
+                "String placeholder = LocalizationService.text(\"Preview unavailable\");",
                 "Missing thumbnails show a clear, neutral placeholder message");
         if (view.contains("event.gc.drawLine(")) {
             throw new AssertionError("The thumbnail placeholder must not contain hand-drawn scribbles.");

@@ -3,6 +3,7 @@ package org.cda.archi.githubworkspace.views;
 import java.io.IOException;
 
 import org.cda.archi.githubworkspace.infrastructure.PluginLog;
+import org.cda.archi.githubworkspace.services.LocalizationService;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.swt.SWT;
@@ -25,8 +26,9 @@ public final class PluginLogDialog extends TitleAreaDialog {
 
     @Override
     protected Control createDialogArea(Composite parent) {
-        setTitle("GitHub Workspace Log");
-        setMessage("Diagnostic trace saved at " + pathLabel() + ". Tokens and credentials are not logged.");
+        setTitle(LocalizationService.text("GitHub Workspace Log"));
+        setMessage(LocalizationService.format(
+                "Diagnostic trace saved at {0}. Tokens and credentials are not logged.", pathLabel()));
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -39,9 +41,9 @@ public final class PluginLogDialog extends TitleAreaDialog {
         logText.setLayoutData(logData);
         try {
             String log = PluginLog.readAll();
-            logText.setText(log.isEmpty() ? "No log entries yet." : log);
+            logText.setText(log.isEmpty() ? LocalizationService.text("No log entries yet.") : log);
         } catch (IOException ex) {
-            logText.setText("Could not read the log file: " + ex.getMessage());
+            logText.setText(LocalizationService.format("Could not read the log file: {0}", ex.getMessage()));
         }
         logText.setSelection(logText.getCharCount());
         return area;
@@ -49,7 +51,7 @@ public final class PluginLogDialog extends TitleAreaDialog {
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
-        createButton(parent, IDialogConstants.CLOSE_ID, "Close", true);
+        createButton(parent, IDialogConstants.CLOSE_ID, LocalizationService.text("Close"), true);
     }
 
     @Override
