@@ -35,7 +35,27 @@ public final class DataManagerServiceTests {
                 && LocalizationService.effectiveLanguage(LocalizationService.ENGLISH,
                         java.util.Locale.forLanguageTag("es")).equals(LocalizationService.ENGLISH)
                 && LocalizationService.translate("Browse Repositories", LocalizationService.SPANISH)
-                        .equals("Explorar repositorios"),
+                        .equals("Explorar repositorios")
+                && LocalizationService.translate("Enter a valid email address.", LocalizationService.SPANISH)
+                        .equals("Ingrese una dirección de correo válida.")
+                && LocalizationService.translate("email is required.", LocalizationService.SPANISH)
+                        .equals("email es obligatorio.")
+                && LocalizationService.translate("A table named architects already exists.",
+                        LocalizationService.SPANISH).equals("Ya existe una tabla llamada architects.")
+                && LocalizationService.translate("Invalid value for email: enter a valid email",
+                        LocalizationService.SPANISH)
+                        .equals("El valor de email no es válido: ingrese un correo electrónico válido")
+                && LocalizationService.translate("Define exactly one primary key.",
+                        LocalizationService.SPANISH).equals("Defina exactamente una clave primaria.")
+                && LocalizationService.translate("Code must use the format SBB-0099999.",
+                        LocalizationService.SPANISH).equals("El código debe tener el formato SBB-0099999.")
+                && LocalizationService.translate("Enter a valid workspace path.",
+                        LocalizationService.SPANISH).equals("Ingrese una ruta válida para el espacio de trabajo.")
+                && LocalizationService.translate("A table must have between 1 and 64 columns.",
+                        LocalizationService.SPANISH).equals("La tabla debe tener entre 1 y 64 columnas.")
+                && LocalizationService.translate("Invalid regular expression: Unclosed character class",
+                        LocalizationService.SPANISH)
+                        .equals("Expresión regular no válida: clase de caracteres sin cerrar"),
                 "Automatic locale detection, manual override, and Spanish UI translation work");
         assertions++;
         TableSchemaService schemaCodec = new TableSchemaService();
