@@ -16,7 +16,7 @@ public final class GitHubSession implements AutoCloseable {
 
     public GitHubUser getUser() { return user; }
 
-    String tokenForRequest() {
+    public String tokenForRequest() {
         if (token.length == 0) throw new IllegalStateException("GitHub session has been closed.");
         return new String(token);
     }

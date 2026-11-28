@@ -14,6 +14,7 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.DirectoryDialog;
+import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
@@ -30,6 +31,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
     private Text organization;
     private Text topic;
     private Text templateRepository;
+    private Text dataRepository;
     private Button useDefault;
     private Text workspaceLocation;
     private Button browse;
@@ -61,6 +63,13 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         groupTitle(content, "Repository Templates");
         templateRepository = row(content, "Template Repository URL:", preferences.getTemplateRepository());
         templateRepository.setToolTipText("GitHub repository whose root folders provide repository templates.");
+
+        Group dataGroup = new Group(content, SWT.NONE);
+        dataGroup.setText("Data Management");
+        dataGroup.setLayout(new GridLayout(3, false));
+        dataGroup.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        dataRepository = row(dataGroup, "Data Repository URL:", preferences.getDataRepository());
+        dataRepository.setToolTipText("GitHub repository used to store table schemas and JSON records.");
 
         groupTitle(content, "Local Workspace");
         useDefault = new Button(content, SWT.CHECK);
@@ -124,6 +133,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
         organization.setText("https://github.com/" + PreferencesService.DEFAULT_ORGANIZATION);
         topic.setText(PreferencesService.DEFAULT_TOPIC);
         templateRepository.setText(PreferencesService.DEFAULT_TEMPLATE_REPOSITORY);
+        dataRepository.setText(PreferencesService.DEFAULT_DATA_REPOSITORY);
         useDefault.setSelection(true);
         workspaceLocation.setText(preferences.defaultWorkspace().toString());
         updateWorkspaceControls();
@@ -136,6 +146,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
             validateDiscovery();
             org.cda.archi.githubworkspace.services.RepositoryManagementService
                     .normalizeTemplateRepository(templateRepository.getText());
+            PreferencesService.normalizeDataRepositoryUrl(dataRepository.getText());
             Path workspace;
             if (useDefault.getSelection()) {
                 workspace = preferences.defaultWorkspace();
@@ -146,6 +157,7 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
             PreferencesService.validateWorkspaceLocation(workspace.toString());
             preferences.saveSearch(organization.getText().trim());
             preferences.saveTemplateRepository(templateRepository.getText().trim());
+            preferences.saveDataRepository(dataRepository.getText().trim());
             preferences.saveWorkspace(useDefault.getSelection(), workspaceLocation.getText().trim());
             setErrorMessage(null);
             return true;

@@ -14,9 +14,12 @@ public final class PreferencesService {
     private static final String DEFAULT_WORKSPACE = "workspace.useDefault";
     private static final String CUSTOM_WORKSPACE = "workspace.location";
     private static final String LAST_ACCOUNT = "authentication.lastAccount";
+    private static final String DATA_REPOSITORY = "data.repository";
     public static final String DEFAULT_ORGANIZATION = "repository-governance";
     public static final String DEFAULT_TOPIC = "archimate";
     public static final String DEFAULT_TEMPLATE_REPOSITORY = "https://github.com/repository-governance/templates";
+    public static final String DEFAULT_DATA_REPOSITORY =
+            "https://github.com/repository-governance/workspace-data";
 
     private final IEclipsePreferences preferences;
 
@@ -34,6 +37,26 @@ public final class PreferencesService {
     public String getTopic() { return DEFAULT_TOPIC; }
     public String getTemplateRepository() {
         return preferences.get(TEMPLATE_REPOSITORY, DEFAULT_TEMPLATE_REPOSITORY);
+    }
+    public String getDataRepository() {
+        return preferences.get(DATA_REPOSITORY, DEFAULT_DATA_REPOSITORY);
+    }
+
+    public static String normalizeDataRepositoryUrl(String value) throws IOException {
+        if (value == null || value.isBlank()) throw new IOException("Configure a Data Repository URL in Preferences.");
+        try {
+            java.net.URI uri = java.net.URI.create(value.trim());
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || !"github.com".equalsIgnoreCase(uri.getHost())
+                    || uri.getUserInfo() != null || uri.getPort() != -1
+                    || uri.getQuery() != null || uri.getFragment() != null) {
+                throw new IOException("Data Repository URL must be an HTTPS GitHub repository URL.");
+            }
+            String fullName = RepositoryManagementService.normalizeTemplateRepository(
+                    "https://github.com" + uri.getRawPath());
+            return "https://github.com/" + fullName;
+        } catch (IllegalArgumentException ex) {
+            throw new IOException("Enter a valid HTTPS GitHub repository URL.");
+        }
     }
     public boolean useDefaultWorkspace() { return preferences.getBoolean(DEFAULT_WORKSPACE, true); }
     public String getCustomWorkspaceLocation() { return preferences.get(CUSTOM_WORKSPACE, ""); }
@@ -61,6 +84,11 @@ public final class PreferencesService {
 
     public void saveTemplateRepository(String repository) throws org.osgi.service.prefs.BackingStoreException {
         preferences.put(TEMPLATE_REPOSITORY, repository == null ? "" : repository.trim());
+        preferences.flush();
+    }
+
+    public void saveDataRepository(String repository) throws org.osgi.service.prefs.BackingStoreException {
+        preferences.put(DATA_REPOSITORY, repository == null ? DEFAULT_DATA_REPOSITORY : repository.trim());
         preferences.flush();
     }
 
@@ -117,6 +145,7 @@ public final class PreferencesService {
     public void restoreDefaults() throws org.osgi.service.prefs.BackingStoreException {
         preferences.put(ORGANIZATION, DEFAULT_ORGANIZATION);
         preferences.put(TEMPLATE_REPOSITORY, DEFAULT_TEMPLATE_REPOSITORY);
+        preferences.put(DATA_REPOSITORY, DEFAULT_DATA_REPOSITORY);
         preferences.putBoolean(DEFAULT_WORKSPACE, true);
         preferences.put(CUSTOM_WORKSPACE, "");
         preferences.flush();

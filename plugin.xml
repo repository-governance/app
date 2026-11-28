@@ -7,14 +7,19 @@
                name="Browse Repositories..."
                categoryId="org.cda.archi.githubworkspace.category"/>
       <command id="org.cda.archi.githubworkspace.managementRepositories"
-               name="Management Repositories"
-               categoryId="org.cda.archi.githubworkspace.category"/>
+                name="Management Repositories"
+                categoryId="org.cda.archi.githubworkspace.category"/>
+      <command id="org.cda.archi.githubworkspace.dataManager"
+                name="Data Manager..."
+                categoryId="org.cda.archi.githubworkspace.category"/>
    </extension>
    <extension point="org.eclipse.ui.handlers">
       <handler class="org.cda.archi.githubworkspace.controllers.GitHubWorkspaceController"
                commandId="org.cda.archi.githubworkspace.browseRepositories"/>
       <handler class="org.cda.archi.githubworkspace.controllers.RepositoryManagementController"
-               commandId="org.cda.archi.githubworkspace.managementRepositories"/>
+                commandId="org.cda.archi.githubworkspace.managementRepositories"/>
+      <handler class="org.cda.archi.githubworkspace.controllers.DataManagerController"
+                commandId="org.cda.archi.githubworkspace.dataManager"/>
    </extension>
    <extension point="org.eclipse.ui.menus">
         <menuContribution locationURI="menu:file?after=fileStart">
@@ -29,7 +34,12 @@
                        id="org.cda.archi.githubworkspace.managementRepositories.menu"
                        label="Management Repositories"
                        icon="icons/catalogs.png"
-                       style="push"/>
+                        style="push"/>
+              <command commandId="org.cda.archi.githubworkspace.dataManager"
+                        id="org.cda.archi.githubworkspace.dataManager.menu"
+                        label="Data Manager..."
+                        icon="icons/catalogs.png"
+                        style="push"/>
          </menu>
       </menuContribution>
    </extension>

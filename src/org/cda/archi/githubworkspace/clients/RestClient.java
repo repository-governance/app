@@ -89,6 +89,21 @@ public final class RestClient implements GitHubApiClient {
         return send(request, cancellation);
     }
 
+    @Override
+    public RestResponse delete(URI uri, String bearerToken, String jsonBody, CancellationToken cancellation)
+            throws IOException, InterruptedException {
+        validateApiUri(uri);
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(REQUEST_TIMEOUT)
+                .header("Authorization", "Bearer " + bearerToken)
+                .header("Accept", "application/vnd.github+json")
+                .header("Content-Type", "application/json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .method("DELETE", HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+        return send(request, cancellation);
+    }
+
     private RestResponse send(HttpRequest request, CancellationToken cancellation)
             throws IOException, InterruptedException {
         cancellation.throwIfCancelled();

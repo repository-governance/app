@@ -28,7 +28,30 @@ public final class CatalogRegressionTests {
                 "src/org/cda/archi/githubworkspace/views/GitHubWorkspacePreferencePage.java"));
         String managementController = Files.readString(root.resolve(
                 "src/org/cda/archi/githubworkspace/controllers/RepositoryManagementController.java"));
+        String plugin = Files.readString(root.resolve("plugin.xml"));
+        String dataView = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/views/DataManagerDialog.java"));
+        String dataController = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/controllers/DataManagerController.java"));
         int assertions = 0;
+
+        assertions += sourceContains(plugin, "name=\"Data Manager...\"",
+                "Data Manager is contributed under the existing File menu");
+        assertions += sourceContains(plugin,
+                "class=\"org.cda.archi.githubworkspace.controllers.DataManagerController\"",
+                "Data Manager menu command is handled by its MVC controller");
+        assertions += sourceContains(dataView, "new SashForm(root, SWT.HORIZONTAL)",
+                "Data Manager uses a resizable two-panel SashForm");
+        assertions += sourceContains(dataView, "new TableViewer(panel",
+                "Data Manager uses JFace TableViewer for table and record grids");
+        assertions += sourceContains(dataView, "new PluginLogDialog(getShell()).open()",
+                "Data Manager exposes the shared diagnostic log viewer");
+        assertions += sourceContains(dataView, "PluginLog.info(\"Data Manager\", \"Opened the log viewer.\")",
+                "Opening the Data Manager log viewer is included in diagnostics");
+        assertions += sourceContains(dataController, "ensureSession(token)",
+                "Data Manager reuses Git Credential Manager authentication");
+        assertions += sourceContains(preferencesPage, "dataRepository = row(dataGroup, \"Data Repository URL:\"",
+                "Preferences expose the configurable Data Repository URL");
 
         assertions += sourceContains(controller, "private void initialize() {\n        connect();",
                 "Opening the catalog automatically starts authentication");

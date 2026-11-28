@@ -67,6 +67,7 @@ public final class GitHubWorkspaceTests {
         assertions += CatalogRegressionTests.run();
         assertions += org.cda.archi.githubworkspace.views.CloneRepositoryDialogTests.run();
         assertions += org.cda.archi.githubworkspace.services.RepositoryManagementServiceTests.run();
+        assertions += org.cda.archi.githubworkspace.services.DataManagerServiceTests.run();
         testJsonValidation();
         System.out.println("PASS: " + assertions + " GitHub Workspace assertions");
     }
@@ -192,15 +193,26 @@ public final class GitHubWorkspaceTests {
                     "GitHub organization URLs normalize to API logins");
             equal("https://github.com/repository-governance/templates", preferences.getTemplateRepository(),
                     "The configured repository of root-level templates has a default");
+            equal(PreferencesService.DEFAULT_DATA_REPOSITORY, preferences.getDataRepository(),
+                    "Data Repository URL has its configured default");
+            equal("https://github.com/example-org/data",
+                    PreferencesService.normalizeDataRepositoryUrl("https://github.com/example-org/data.git"),
+                    "Data Repository URL normalizes valid GitHub repository URLs");
+            expectThrows(IOException.class,
+                    () -> PreferencesService.normalizeDataRepositoryUrl("example-org/data"),
+                    "Data Repository preference requires an HTTPS GitHub URL");
             check(preferences.useDefaultWorkspace(), "Default workspace is enabled initially");
             preferences.saveSearch("https://github.com/example-org/");
             preferences.saveTemplateRepository("https://github.com/example-org/templates");
+            preferences.saveDataRepository("https://github.com/example-org/data");
             equal("example-org", preferences.getOrganization(), "Organization preference persists");
             equal("https://github.com/example-org", preferences.getOrganizationUrl(),
                     "Organization URL is normalized and persists");
             equal("archimate", preferences.getTopic(), "The default topic remains fixed");
             equal("https://github.com/example-org/templates", preferences.getTemplateRepository(),
                     "Template repository preference persists");
+            equal("https://github.com/example-org/data", preferences.getDataRepository(),
+                    "Data Repository URL persists");
 
             Path custom = home.resolve("custom-workspace");
             preferences.saveWorkspace(false, custom.toString());

@@ -1,6 +1,6 @@
 # GitHub Workspace for Archi
 
-GitHub Workspace is a native SWT/JFace plug-in for Archi **5.11.0**. It reuses the existing Governance authentication, GitHub REST, MVC, asynchronous process, and native model-opening services. Its first release resets the product version to **0.1.0** and adds repository browsing and management, template-based repository creation, thumbnails, configurable preferences, and independent local branches.
+GitHub Workspace is a native SWT/JFace plug-in for Archi **5.11.0**. It reuses Git Credential Manager authentication and GitHub REST, MVC, asynchronous process, and native model-opening services. Version **0.1.0** includes repository browsing and management, template-based repository creation, thumbnails, configurable preferences, independent local branches, and Data Manager.
 
 ## Compatibility and build
 
@@ -35,9 +35,23 @@ Open **Preferences → GitHub Workspace**. Settings use the native Archi/Eclipse
 - **Organization URL**: defaults to `https://github.com/repository-governance`; the app stores and sends the organization login.
 - **Topic by default**: fixed to `archimate` and read-only. It filters Browse and Management repositories and is assigned to newly created repositories.
 - **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
-- **Template Repository URL**: defaults to `https://github.com/repository-governance/templates`. Each root folder is offered as a repository template.
 
 The catalog searches GitHub using `org:{organization} topic:{topic}` and does not expose these settings as editable catalog fields.
+
+### Data Management
+
+**Data Repository URL** defaults to `https://github.com/repository-governance/workspace-data`. It must be an HTTPS GitHub repository URL. Data Manager obtains the configured repository's default branch from GitHub REST; it does not assume `main` or `master`. Authentication reuses the configured Git Credential Manager flow, and no PAT or credential is stored by the plugin.
+
+Choose **File → GitHub Workspace → Data Manager...** to open a modal, resizable table designer and JSON-record manager. Tables are discovered from valid schema files; there is no separate catalog file:
+
+```text
+tables/{table-name}/schema.json
+tables/{table-name}/records/{safe-primary-key}.json
+```
+
+Each record is a separate UTF-8 JSON document. Numeric and boolean fields are stored as JSON numbers and booleans; empty optional values are JSON `null`. Primary keys are encoded using URL-safe Base64 in filenames so they cannot introduce paths or traversal. Table creation and record CRUD commit through GitHub's Contents API with the repository branch and fetched SHA. A 409/422 conflict is reported for refresh/retry rather than overwritten. If GitHub identifies a repository as empty, the first explicit **Create Table** action tries Contents API first and can initialize its first branch using create-only Git Database tree/commit/ref endpoints; opening the window never writes data.
+
+Limitations: schemas cannot be edited or deleted after creation; relationships, bulk operations, and migrations are not implemented. Data Manager supports up to 200 table entries, caps each record file at 256 KiB and each table at 999 records, and rejects directory listings at the Contents API 1,000-entry boundary instead of presenting a potentially partial result. Public data repositories produce a warning; do not store sensitive or personal data there. GitHub's API can return 404 for inaccessible private resources as well as absent paths, so repository metadata and the default branch are checked first; for initialized repositories, root contents must also be readable before missing table/records paths are treated as absent.
 
 ### Local Workspace
 
@@ -65,15 +79,11 @@ Repository creation and template copying require a GitHub credential with permis
 
 ## Diagnostic log
 
-The help icon in the lower-left corner of Browse Repositories and Management Repositories opens a modal, selectable multiline view of the complete trace, including operation messages and exception stack traces. The log is appended under the user's profile at `${user.home}/.github-workspace/logs/github-workspace.log` (on Windows: `%USERPROFILE%\.github-workspace\logs\github-workspace.log`). Authorization headers, tokens, credential output, and API request bodies are not written to the log.
+The help icon in the lower-left corner of Browse Repositories, Management Repositories, and Data Manager opens a modal, selectable multiline view of the complete trace, including operation messages and exception stack traces. The log is appended under the user's profile at `${user.home}/.github-workspace/logs/github-workspace.log` (on Windows: `%USERPROFILE%\.github-workspace\logs\github-workspace.log`). Authorization headers, tokens, credential output, and API request bodies are not written to the log.
 
-## Manage organization repositories
+## Data Manager
 
-Choose **File → GitHub Workspace → Management Repositories** to view repositories tagged with the fixed `archimate` topic. The grid includes a Topic column alongside each repository's description, visibility, and default branch.
-
-**Create Repository** presents a **Building Block** form for code (`SBB-` plus seven digits), type (`AM` or `SD`), alphabetic title, multiline description, and template. The GitHub repository name combines code, type, and a title slug; descriptions are saved to GitHub. Repositories are always private, receive the `archimate` topic, and contain the selected template folder at the root.
-
-Repository creation and template copying require a GitHub credential with permission to read the template repository, list the organization's repositories, create repositories in that organization, write Git objects, and manage repository topics. If the account lacks those permissions, GitHub Workspace reports the API failure; it does not store credentials in Preferences.
+The Data Manager table designer currently supports String, Text, Integer, Decimal, Boolean, Date, DateTime, Email, URL, and UUID columns. It requires exactly one String, Integer, or UUID primary key. Forms are generated from `schema.json` at runtime. The automated build uses simulated HTTP responses only; it does not perform real GitHub reads or writes. Test a configured repository and token manually before production use.
 
 ## Browse repositories
 
@@ -124,7 +134,7 @@ Organization, repository, branch name, workspace, and model paths are validated.
 
 ## Automated tests and generated files
 
-`docker compose run --rm builder` compiles, runs all preserved authentication/search tests plus workspace, security, plan branch, reuse, thumbnail, and local Git integration tests, validates the OSGi bundle and installer archive, and checks SHA-256 sums. Tests use temporary repositories and fake GitHub API responses; they require no real credentials.
+`docker compose run --rm builder` compiles, runs the existing authentication/search/workspace/security/plan/thumbnail/local-Git tests and mocked Data Manager schema/Contents CRUD tests, validates the OSGi bundle and installer archive, and checks SHA-256 sums. Tests use temporary repositories and simulated GitHub API responses; they require no real credentials.
 
 Generated files:
 
@@ -138,8 +148,8 @@ Historical Governance artifacts in `dist/` are retained and are not overwritten 
 
 Automated tests cannot prove native UI behavior. In Archi 5.11.0, verify:
 
-1. Uninstall Governance, install the GitHub Workspace `.archiplugin`, restart, and confirm **File → GitHub Workspace** contains **Browse Repositories...** followed by **Management Repositories**.
-2. Open Preferences, verify the default organization/topic/template repository/workspace, apply a custom writable location, restart Archi, and confirm the settings persist.
+1. Uninstall Governance, install the GitHub Workspace `.archiplugin`, restart, and confirm **File → GitHub Workspace** contains **Browse Repositories...**, **Management Repositories**, and **Data Manager...**.
+2. Open Preferences, verify the default organization/topic/template/data repository/workspace, apply a custom writable location and Data Repository URL, restart Archi, and confirm the settings persist.
 3. Connect through Git Credential Manager, confirm the account, and browse repositories with and without thumbnails.
 4. Clone a repository into a new branch name. Verify the final path, active branch, and that no new branch was pushed. Repeat with a branch of that name already present remotely and verify upstream tracking.
 5. Edit and save `source/design.archimate`; confirm `git status` sees the change.
@@ -147,6 +157,8 @@ Automated tests cannot prove native UI behavior. In Archi 5.11.0, verify:
 7. Open an already-open plan again; verify it activates the current model without reload or loss of unsaved changes.
 8. Change the workspace root and verify no checkout moved, disappeared, or changed, including any legacy `.governance/workspace/` directory.
 9. Cancel a clone and verify no final plan checkout was left published.
-10. With an organization where the authenticated account has repository-creation permission, open **Management Repositories**, confirm it lists repositories beyond the Browse topic, and create a test repository from a selected template folder; verify its files are at the repository root and visibility matches the selection.
+10. With an organization where the authenticated account has repository-creation permission, open **Management Repositories**, confirm it lists repositories tagged `archimate`, and create a test repository from a selected template folder; verify its files are at the repository root, it is private, and it has the `archimate` topic.
+11. Configure a private test Data Repository and open **Data Manager**. Verify the reported table catalog/default branch and, for an empty repository, that opening the window alone creates no remote content.
+12. Create `architects` with `id` (String primary key), `fullName` (String), `email` (Email), and `active` (Boolean); create, read, edit, and delete a test record, then close/reopen the dialog and verify the schema/records reload from GitHub. Also check a public repository warning if using a disposable public repository.
 
-**Unverified here:** the new preference page, File menu rendering, management screen and real GitHub repository creation, thumbnail image presentation, and simultaneous native opening of two copied models must be exercised in Archi 5.11.0 before claiming functional acceptance. The pre-refactor 103-assertion suite is preserved and has a passing baseline; new automated checks supplement it but do not replace this manual checklist.
+**Unverified here:** native UI behavior in Archi 5.11.0 and all real GitHub reads/writes—including empty-repository initialization—must be manually exercised before claiming functional acceptance. Automated Data Manager tests use simulated HTTP responses and do not contact GitHub.
