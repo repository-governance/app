@@ -7,6 +7,7 @@ import org.cda.archi.githubworkspace.models.GitConfiguration;
 import org.cda.archi.githubworkspace.services.GitService;
 import org.cda.archi.githubworkspace.services.PreferencesService;
 import org.cda.archi.githubworkspace.services.WorkspaceService;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
@@ -30,6 +31,7 @@ import org.cda.archi.githubworkspace.services.LocalizationService;
 public final class GitHubWorkspacePreferencePage extends PreferencePage implements IWorkbenchPreferencePage {
     public static final String PAGE_ID = "org.cda.archi.githubworkspace.preferences";
     private final PreferencesService preferences = new PreferencesService();
+    private String savedLanguageChoice = preferences.getLanguage();
     private Text organization;
     private Text topic;
     private Text templateRepository;
@@ -138,13 +140,13 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
 
     @Override
     public boolean performOk() {
-        if (!saveSettings()) return false;
+        if (!saveAndHandleLanguageChange()) return false;
         return super.performOk();
     }
 
     @Override
     protected void performApply() {
-        saveSettings();
+        saveAndHandleLanguageChange();
     }
 
     @Override
@@ -192,6 +194,23 @@ public final class GitHubWorkspacePreferencePage extends PreferencePage implemen
                     ex.getMessage() == null ? "Could not save GitHub Workspace preferences." : ex.getMessage()));
             return false;
         }
+    }
+
+    private boolean saveAndHandleLanguageChange() {
+        String previousChoice = savedLanguageChoice;
+        if (!saveSettings()) return false;
+        String newChoice = preferences.getLanguage();
+        savedLanguageChoice = newChoice;
+        String previousLanguage = LocalizationService.effectiveLanguage(previousChoice, java.util.Locale.getDefault());
+        String newLanguage = LocalizationService.effectiveLanguage(newChoice, java.util.Locale.getDefault());
+        if (!previousLanguage.equals(newLanguage)
+                && MessageDialog.openQuestion(getShell(),
+                        LocalizationService.text("Restart required"),
+                        LocalizationService.text(
+                                "The language change will take effect after restarting Archi. Restart now?"))) {
+            org.eclipse.ui.PlatformUI.getWorkbench().restart();
+        }
+        return true;
     }
 
     private void validateDiscovery() {

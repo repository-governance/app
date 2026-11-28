@@ -48,6 +48,11 @@ public final class CatalogRegressionTests {
                 root.resolve("src/org/cda/archi/githubworkspace/views/GitHubWorkspacePreferencePage.java"),
                 "language.setItems(LocalizationService.text(\"Automatic (system)\"),",
                 "Preferences exposes automatic, English and Spanish language choices");
+        assertions += sourceContains(preferencesPage,
+                "LocalizationService.effectiveLanguage(previousChoice, java.util.Locale.getDefault())",
+                "Language restart detection compares effective locales rather than stored choice IDs");
+        assertions += sourceContains(preferencesPage, "PlatformUI.getWorkbench().restart();",
+                "Applying a language change can restart Archi to reload plugin labels");
         assertions += sourceContains(plugin, "icon=\"icons/database.png\"",
                 "Data Manager menu item uses the dedicated database icon");
         assertions += sourceContains(plugin, "icon=\"icons/repository.png\"",
