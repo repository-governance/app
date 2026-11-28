@@ -25,6 +25,12 @@ public final class TableSchemaService {
             value.put("name", column.name());
             value.put("type", displayType(column.type()));
             value.put("required", column.required());
+            if (!column.pattern().isEmpty()) {
+                value.put("pattern", column.pattern());
+                if (!column.validationMessage().isEmpty()) {
+                    value.put("validationMessage", column.validationMessage());
+                }
+            }
             columns.add(value);
         }
         object.put("columns", columns);
@@ -55,7 +61,10 @@ public final class TableSchemaService {
             Object marker = column.get("primaryKey");
             boolean primary = marker instanceof Boolean flag
                     ? flag : primaryKey.equals(columnName);
-            columns.add(new ColumnDefinition(columnName, type, primary, required));
+            String pattern = column.containsKey("pattern") ? string(column.get("pattern")) : "";
+            String validationMessage = column.containsKey("validationMessage")
+                    ? string(column.get("validationMessage")) : "";
+            columns.add(new ColumnDefinition(columnName, type, primary, required, pattern, validationMessage));
         }
         return new TableSchema(version, name, description, primaryKey, columns);
     }

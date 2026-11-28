@@ -33,6 +33,10 @@ public final class CatalogRegressionTests {
                 "src/org/cda/archi/githubworkspace/views/DataManagerDialog.java"));
         String dataController = Files.readString(root.resolve(
                 "src/org/cda/archi/githubworkspace/controllers/DataManagerController.java"));
+        String columnDialog = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/views/ColumnDefinitionDialog.java"));
+        String dynamicForm = Files.readString(root.resolve(
+                "src/org/cda/archi/githubworkspace/views/DynamicFormRenderer.java"));
         int assertions = 0;
 
         assertions += sourceContains(plugin, "name=\"Data Manager...\"",
@@ -48,6 +52,14 @@ public final class CatalogRegressionTests {
                 "Data Manager exposes the shared diagnostic log viewer");
         assertions += sourceContains(dataView, "PluginLog.info(\"Data Manager\", \"Opened the log viewer.\")",
                 "Opening the Data Manager log viewer is included in diagnostics");
+        assertions += sourceContains(dataView, "toolItem(toolbar, \"Edit Schema\"",
+                "Data Manager allows editing the selected table schema");
+        assertions += sourceContains(dataController, "tables.update(owner, repository, branch, original, updated, schemaSha",
+                "Schema editing writes against the schema SHA to prevent lost concurrent updates");
+        assertions += sourceContains(columnDialog, "Validate with regular expression",
+                "Column designer exposes optional String regex validation");
+        assertions += sourceContains(dynamicForm, "column.patternFailureMessage()",
+                "Dynamic forms display the configured regex failure message");
         assertions += sourceContains(dataController, "ensureSession(token)",
                 "Data Manager reuses Git Credential Manager authentication");
         assertions += sourceContains(preferencesPage, "dataRepository = row(dataGroup, \"Data Repository URL:\"",

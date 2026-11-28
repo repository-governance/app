@@ -64,7 +64,8 @@ public final class DataValidationService {
                 String text = String.valueOf(value);
                 values.put(column.name(), convert(column, text));
             } catch (RuntimeException ex) {
-                throw new IllegalArgumentException("Invalid stored value for " + column.name() + ".");
+                throw new IllegalArgumentException("Invalid stored value for " + column.name() + ": "
+                        + ex.getMessage());
             }
         }
         if (stored.size() > schema.columns().size() || stored.keySet().stream()
@@ -97,7 +98,11 @@ public final class DataValidationService {
                 yield uri.toASCIIString();
             }
             case UUID -> java.util.UUID.fromString(text.trim()).toString();
-            case STRING, TEXT -> text;
+            case STRING -> {
+                if (!column.matchesPattern(text)) throw new IllegalArgumentException(column.patternFailureMessage());
+                yield text;
+            }
+            case TEXT -> text;
         };
     }
 }

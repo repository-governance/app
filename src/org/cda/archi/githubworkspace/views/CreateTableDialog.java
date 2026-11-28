@@ -26,6 +26,7 @@ import org.eclipse.swt.widgets.Text;
 public final class CreateTableDialog extends TitleAreaDialog {
     private final Consumer<TableSchema> created;
     private final java.util.Set<String> existingNames;
+    private final TableSchema initialSchema;
     private final List<ColumnDefinition> columns = new ArrayList<>();
     private Text name;
     private Text description;
@@ -33,10 +34,17 @@ public final class CreateTableDialog extends TitleAreaDialog {
     private Button create;
 
     public CreateTableDialog(Shell parent, java.util.Set<String> existingNames, Consumer<TableSchema> created) {
+        this(parent, existingNames, null, created);
+    }
+
+    public CreateTableDialog(Shell parent, java.util.Set<String> existingNames, TableSchema initialSchema,
+            Consumer<TableSchema> saved) {
         super(parent);
-        this.created = created;
+        this.created = saved;
+        this.initialSchema = initialSchema;
         this.existingNames = existingNames.stream().map(name -> name.toLowerCase(java.util.Locale.ROOT))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (initialSchema != null) columns.addAll(initialSchema.columns());
         setShellStyle(SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE | SWT.MAX);
         setBlockOnOpen(true);
     }
@@ -47,8 +55,10 @@ public final class CreateTableDialog extends TitleAreaDialog {
     }
 
     @Override protected Control createDialogArea(Composite parent) {
-        setTitle("Create Table");
-        setMessage("Define a table schema. Exactly one String, Integer, or UUID primary key is required.");
+        setTitle(initialSchema == null ? "Create Table" : "Edit Table Schema");
+        setMessage(initialSchema == null
+                ? "Define a table schema. Exactly one String, Integer, or UUID primary key is required."
+                : "Update the schema. Existing records must remain compatible; the table name is fixed.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -58,11 +68,13 @@ public final class CreateTableDialog extends TitleAreaDialog {
         properties.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         properties.setLayout(new GridLayout(2, false));
         new Label(properties, SWT.NONE).setText("Table Name:");
-        name = new Text(properties, SWT.BORDER);
+        name = new Text(properties, SWT.BORDER | (initialSchema == null ? SWT.NONE : SWT.READ_ONLY));
         name.setMessage("architects");
+        if (initialSchema != null) name.setText(initialSchema.name());
         name.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         new Label(properties, SWT.NONE).setText("Description:");
         description = new Text(properties, SWT.BORDER);
+        if (initialSchema != null) description.setText(initialSchema.description());
         description.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
         Group columnsGroup = new Group(content, SWT.NONE);
         columnsGroup.setText("Columns");
@@ -93,7 +105,8 @@ public final class CreateTableDialog extends TitleAreaDialog {
 
     @Override protected void createButtonsForButtonBar(Composite parent) {
         createButton(parent, IDialogConstants.CANCEL_ID, "Cancel", false);
-        create = createButton(parent, IDialogConstants.OK_ID, "Create Table", true);
+        create = createButton(parent, IDialogConstants.OK_ID,
+                initialSchema == null ? "Create Table" : "Save Schema", true);
         validateForm();
     }
 
@@ -153,7 +166,10 @@ public final class CreateTableDialog extends TitleAreaDialog {
                 throw new IllegalArgumentException(
                         "Use 1–48 letters, digits, underscores, or hyphens; begin with a letter or underscore.");
             }
-            if (existingNames.contains(name.getText().trim().toLowerCase(java.util.Locale.ROOT))) {
+            boolean sameExistingName = initialSchema != null
+                    && initialSchema.name().equalsIgnoreCase(name.getText().trim());
+            if (existingNames.contains(name.getText().trim().toLowerCase(java.util.Locale.ROOT))
+                    && !sameExistingName) {
                 throw new IllegalArgumentException("A table with this name already exists.");
             }
             new TableSchema("1.0", name.getText().trim(), "", null, columns);

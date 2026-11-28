@@ -41,6 +41,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         void refresh();
         void selectTable(TableSchema schema);
         void createTable(TableSchema schema);
+        void updateTableSchema(TableSchema original, TableSchema updated);
         void createRecord(TableSchema schema, java.util.Map<String, String> values);
         void updateRecord(TableSchema schema, DataRecord original, java.util.Map<String, String> values);
         void deleteRecord(TableSchema schema, DataRecord record);
@@ -59,6 +60,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
     private ToolItem editRecord;
     private ToolItem deleteRecord;
     private ToolItem schemaButton;
+    private ToolItem editSchemaButton;
     private ToolItem refreshRecords;
     private Button refreshTables;
     private Button newTable;
@@ -185,6 +187,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         tableDescription.setText(schema.name() + (schema.description().isBlank()
                 ? "" : " — " + schema.description()));
         schemaButton.setEnabled(true);
+        editSchemaButton.setEnabled(true);
         updateRecordCount();
         rootLayout();
     }
@@ -197,6 +200,9 @@ public final class DataManagerDialog extends TitleAreaDialog {
         if (editRecord != null && !editRecord.isDisposed()) editRecord.setEnabled(!busy && selectedRecord() != null);
         if (deleteRecord != null && !deleteRecord.isDisposed()) deleteRecord.setEnabled(!busy && selectedRecord() != null);
         if (schemaButton != null && !schemaButton.isDisposed()) schemaButton.setEnabled(!busy && selectedSchema != null);
+        if (editSchemaButton != null && !editSchemaButton.isDisposed()) {
+            editSchemaButton.setEnabled(!busy && selectedSchema != null);
+        }
         if (refreshRecords != null && !refreshRecords.isDisposed()) refreshRecords.setEnabled(!busy);
         if (refreshTables != null && !refreshTables.isDisposed()) refreshTables.setEnabled(!busy);
         if (newTable != null && !newTable.isDisposed()) newTable.setEnabled(!busy);
@@ -281,6 +287,15 @@ public final class DataManagerDialog extends TitleAreaDialog {
         schemaButton = toolItem(toolbar, "View Schema", () -> {
             if (selectedSchema != null) new SchemaViewerDialog(getShell(), selectedSchema).open();
         });
+        editSchemaButton = toolItem(toolbar, "Edit Schema", () -> {
+            TableSchema original = selectedSchema;
+            if (original == null) return;
+            new CreateTableDialog(getShell(),
+                    allSchemas.stream().map(TableSchema::name).collect(java.util.stream.Collectors.toSet()),
+                    original, updated -> {
+                        if (listener != null) listener.updateTableSchema(original, updated);
+                    }).open();
+        });
         refreshRecords = toolItem(toolbar, "Refresh", () -> {
             if (selectedSchema != null && listener != null) listener.selectTable(selectedSchema);
             else if (listener != null) listener.refresh();
@@ -309,6 +324,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         editRecord.setEnabled(false);
         deleteRecord.setEnabled(false);
         schemaButton.setEnabled(false);
+        editSchemaButton.setEnabled(false);
     }
 
     private void rebuildRecordColumns(TableSchema schema) {

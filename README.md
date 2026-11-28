@@ -53,7 +53,7 @@ Each record is a separate UTF-8 JSON document. Numeric and boolean fields are st
 
 Table names may contain uppercase and lowercase letters, digits, underscores, and hyphens; they must start with a letter or underscore and are limited to 48 characters. Names are unique case-insensitively.
 
-Limitations: schemas cannot be edited or deleted after creation; relationships, bulk operations, and migrations are not implemented. Data Manager supports up to 200 table entries, caps each record file at 256 KiB and each table at 999 records, and rejects directory listings at the Contents API 1,000-entry boundary instead of presenting a potentially partial result. Public data repositories produce a warning; do not store sensitive or personal data there. GitHub's API can return 404 for inaccessible private resources as well as absent paths, so repository metadata and the default branch are checked first; for initialized repositories, root contents must also be readable before missing table/records paths are treated as absent.
+Existing schemas can be edited from the selected table, but table names remain fixed to their remote folder and tables cannot be deleted. Schema changes are checked against all current records before writing; incompatible changes and primary-key changes while records exist are blocked. Relationships, bulk operations, and migrations are not implemented. Data Manager supports up to 200 table entries, caps each record file at 256 KiB and each table at 999 records, and rejects directory listings at the Contents API 1,000-entry boundary instead of presenting a potentially partial result. Public data repositories produce a warning; do not store sensitive or personal data there. GitHub's API can return 404 for inaccessible private resources as well as absent paths, so repository metadata and the default branch are checked first; for initialized repositories, root contents must also be readable before missing table/records paths are treated as absent.
 
 ### Local Workspace
 
@@ -85,7 +85,7 @@ The help icon in the lower-left corner of Browse Repositories, Management Reposi
 
 ## Data Manager
 
-The Data Manager table designer currently supports String, Text, Integer, Decimal, Boolean, Date, DateTime, Email, URL, and UUID columns. It requires exactly one String, Integer, or UUID primary key. Forms are generated from `schema.json` at runtime. The automated build uses simulated HTTP responses only; it does not perform real GitHub reads or writes. Test a configured repository and token manually before production use.
+The Data Manager table designer currently supports String, Text, Integer, Decimal, Boolean, Date, DateTime, Email, URL, and UUID columns. String columns can opt into a Java regular-expression pattern (matched against the complete value) and a custom mismatch message; the pattern and message are persisted in `schema.json` and checked in the form and again before writes. Patterns are limited to 256 characters and custom messages to 300. It requires exactly one String, Integer, or UUID primary key. Forms are generated from `schema.json` at runtime. The automated build uses simulated HTTP responses only; it does not perform real GitHub reads or writes. Test a configured repository and token manually before production use.
 
 ## Browse repositories
 

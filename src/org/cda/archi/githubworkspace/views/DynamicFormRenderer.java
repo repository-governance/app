@@ -223,7 +223,10 @@ public final class DynamicFormRenderer extends Composite {
                             || "https".equalsIgnoreCase(uri.getScheme()))) return "Enter an HTTP(S) URL.";
                 }
                 case UUID -> UUID.fromString(text);
-                case STRING, TEXT -> { }
+                case STRING -> {
+                    if (!column.matchesPattern(raw)) return column.patternFailureMessage();
+                }
+                case TEXT -> { }
             }
             return null;
         } catch (RuntimeException ex) {

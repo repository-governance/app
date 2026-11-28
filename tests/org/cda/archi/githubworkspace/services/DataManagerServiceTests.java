@@ -40,6 +40,15 @@ public final class DataManagerServiceTests {
         check(serialized.contains("\"primaryKey\":\"id\"") && !serialized.contains("\"primaryKey\":true"),
                 "Schema has one top-level source-of-truth primaryKey field");
         assertions += 2;
+        TableSchema patterned = new TableSchema("1.0", "codes", "Codes", "id", List.of(
+                new ColumnDefinition("id", DataType.STRING, true, true),
+                new ColumnDefinition("code", DataType.STRING, false, true,
+                        "^[A-Z]{2}-[0-9]{4}$", "Use two uppercase letters, a hyphen, and four digits.")));
+        TableSchema decodedPatterned = schemaCodec.parse(schemaCodec.serialize(patterned));
+        check(decodedPatterned.equals(patterned)
+                && schemaCodec.serialize(patterned).contains("\"validationMessage\""),
+                "String regex and its custom message persist in schema.json");
+        assertions++;
 
         expect(IllegalArgumentException.class, () -> new TableSchema("1.0", "../escape", "", null,
                 List.of(new ColumnDefinition("id", DataType.STRING, true, true))),
@@ -60,6 +69,28 @@ public final class DataManagerServiceTests {
         assertions++;
 
         DataValidationService validation = new DataValidationService();
+        Map<String, Object> validCode = validation.validate(patterned,
+                Map.of("id", "row-1", "code", "AB-1234"), true);
+        check(validCode.get("code").equals("AB-1234"), "Matching String regex accepts the value");
+        try {
+            validation.validate(patterned, Map.of("id", "row-2", "code", "ab-1234"), true);
+            throw new AssertionError("Non-matching String regex should fail.");
+        } catch (IllegalArgumentException ex) {
+            check(ex.getMessage().contains("Use two uppercase letters, a hyphen, and four digits."),
+                    "Non-matching String regex returns the configured custom message");
+        }
+        try {
+            validation.validateStored(patterned, Map.of("id", "row-3", "code", "ab-1234"));
+            throw new AssertionError("Stored value not matching String regex should fail.");
+        } catch (IllegalArgumentException ex) {
+            check(ex.getMessage().contains("Use two uppercase letters, a hyphen, and four digits."),
+                    "Stored String values return the configured pattern failure message");
+        }
+        expect(IllegalArgumentException.class, () -> new ColumnDefinition("bad", DataType.STRING,
+                false, false, "[", "custom"), "Invalid Java regular expressions are rejected");
+        expect(IllegalArgumentException.class, () -> new ColumnDefinition("bad", DataType.TEXT,
+                false, false, "^.*$", "custom"), "Regex validation is limited to String columns");
+        assertions += 5;
         Map<String, Object> typed = validation.validate(schema,
                 Map.of("id", "AS117", "fullName", "Ana García", "email", "ana@example.com", "active", "true"),
                 true);
@@ -122,31 +153,72 @@ public final class DataManagerServiceTests {
             check(records.list("owner", "data", loaded.branch(), schema, session, token).isEmpty(),
                     "A missing records directory is treated as an empty table, not an error");
             assertions++;
+            TableSchema withPattern = new TableSchema("1.0", "architects", "Architecture team with validated IDs",
+                    "id", List.of(
+                            new ColumnDefinition("id", DataType.STRING, true, true,
+                                    "^AS[0-9]{3}$", "Use AS followed by three digits."),
+                            new ColumnDefinition("fullName", DataType.TEXT, false, true),
+                            new ColumnDefinition("email", DataType.EMAIL, false, true),
+                            new ColumnDefinition("active", DataType.BOOLEAN, false, false)));
+            TableSchemaRepository.StoredSchema storedSchema =
+                    schemaRepository.read("owner", "data", loaded.branch(), schema.name(), session, token);
+            TableSchemaManager tableManager = new TableSchemaManager(schemaRepository, validation);
+            tableManager.update("owner", "data", loaded.branch(), schema, withPattern, storedSchema.sha(),
+                    List.of(), session, token);
+            TableSchemaRepository.Catalog updatedCatalog = schemaRepository.discover("owner", "data", session, token);
+            check(updatedCatalog.schemas().get(0).equals(withPattern)
+                    && !updatedCatalog.schemaShas().get("architects").equals(storedSchema.sha()),
+                    "Existing schema edits persist via its original Contents SHA");
+            assertions++;
+            expect(java.io.IOException.class, () -> schemaRepository.update("owner", "data", loaded.branch(),
+                    schema, storedSchema.sha(), session, token),
+                    "Concurrent schema changes are rejected using stale SHA");
+            assertions++;
+            TableSchema activeSchema = withPattern;
             Map<String, String> input = Map.of("id", "AS117", "fullName", "Ana García",
                     "email", "ana@example.com", "active", "true");
-            DataRecord created = records.create("owner", "data", loaded.branch(), schema, input, session, token);
-            check(api.files.containsKey(DataRecordRepository.recordPath(schema, "AS117")),
+            DataRecord created = records.create("owner", "data", loaded.branch(), activeSchema, input, session, token);
+            check(api.files.containsKey(DataRecordRepository.recordPath(activeSchema, "AS117")),
                     "Create persists one UTF-8 JSON document at a safe deterministic path");
             assertions++;
-            List<DataRecord> read = records.list("owner", "data", loaded.branch(), schema, session, token);
+            List<DataRecord> read = records.list("owner", "data", loaded.branch(), activeSchema, session, token);
             check(read.size() == 1 && read.get(0).value("active").equals(Boolean.TRUE)
                     && read.get(0).sha().equals(created.sha()), "Read restores typed values and Contents SHA");
             assertions++;
-            expect(java.io.IOException.class, () -> records.create("owner", "data", loaded.branch(), schema,
+            List<ColumnDefinition> requiredAddition = new ArrayList<>(activeSchema.columns());
+            requiredAddition.add(new ColumnDefinition("department", DataType.STRING, false, true));
+            TableSchema incompatible = new TableSchema("1.0", activeSchema.name(), activeSchema.description(),
+                    activeSchema.primaryKey(), requiredAddition);
+            expect(java.io.IOException.class, () -> tableManager.update("owner", "data", loaded.branch(),
+                    activeSchema, incompatible, updatedCatalog.schemaShas().get(activeSchema.name()),
+                    read, session, token),
+                    "Schema updates cannot make existing records fail required-field validation");
+            List<ColumnDefinition> newPrimaryColumns = new ArrayList<>(activeSchema.columns());
+            newPrimaryColumns.set(0, new ColumnDefinition("id", DataType.STRING, false, true,
+                    "^AS[0-9]{3}$", "Use AS followed by three digits."));
+            newPrimaryColumns.add(new ColumnDefinition("newId", DataType.STRING, true, true));
+            TableSchema changedPrimary = new TableSchema("1.0", activeSchema.name(),
+                    activeSchema.description(), "newId", newPrimaryColumns);
+            expect(java.io.IOException.class, () -> tableManager.update("owner", "data", loaded.branch(),
+                    activeSchema, changedPrimary, updatedCatalog.schemaShas().get(activeSchema.name()),
+                    read, session, token),
+                    "Primary-key identity cannot change while records exist");
+            assertions += 2;
+            expect(java.io.IOException.class, () -> records.create("owner", "data", loaded.branch(), activeSchema,
                     input, session, token), "Duplicate primary keys are rejected before a write");
             assertions++;
             Map<String, String> changed = Map.of("id", "AS117", "fullName", "Ana García",
                     "email", "ana@example.com", "active", "false");
-            DataRecord updated = records.update("owner", "data", loaded.branch(), schema, created,
+            DataRecord updated = records.update("owner", "data", loaded.branch(), activeSchema, created,
                     changed, session, token);
             check(Boolean.FALSE.equals(updated.value("active")) && !updated.sha().equals(created.sha()),
                     "Update uses original SHA then returns the new SHA");
             assertions++;
-            expect(java.io.IOException.class, () -> records.update("owner", "data", loaded.branch(), schema,
+            expect(java.io.IOException.class, () -> records.update("owner", "data", loaded.branch(), activeSchema,
                     created, changed, session, token), "Stale SHA update reports a concurrency conflict");
             assertions++;
-            records.delete("owner", "data", loaded.branch(), schema, updated, session, token);
-            check(records.list("owner", "data", loaded.branch(), schema, session, token).isEmpty(),
+            records.delete("owner", "data", loaded.branch(), activeSchema, updated, session, token);
+            check(records.list("owner", "data", loaded.branch(), activeSchema, session, token).isEmpty(),
                     "Delete uses fetched SHA and removes only after remote success");
             assertions++;
             check(api.lastContentWasUtf8 && api.lastDeleteBody.contains("\"sha\"")

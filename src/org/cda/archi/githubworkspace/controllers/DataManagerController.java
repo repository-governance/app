@@ -61,6 +61,7 @@ public final class DataManagerController extends AbstractHandler implements Data
     private volatile String branch = "";
     private volatile boolean emptyRepository;
     private volatile List<TableSchema> currentSchemas = List.of();
+    private volatile Map<String, String> schemaShas = Map.of();
     private volatile TableSchema selectedSchema;
 
     @Override public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -102,6 +103,7 @@ public final class DataManagerController extends AbstractHandler implements Data
                 branch = catalog.branch();
                 emptyRepository = catalog.emptyRepository();
                 currentSchemas = catalog.schemas();
+                schemaShas = catalog.schemaShas();
             }
             ui(taskGeneration, () -> view.showCatalog(catalog.schemas(), catalog.isPrivate(), catalog.emptyRepository()));
         });
@@ -126,6 +128,37 @@ public final class DataManagerController extends AbstractHandler implements Data
             tables.create(owner, repository, branch, emptyRepository, schema, currentSchemas, ensureSession(token), token);
             PluginLog.info("Data Manager", "Created table " + schema.name() + ".");
             refreshAfterMutation(schema, taskGeneration, token);
+        });
+    }
+
+    @Override public void updateTableSchema(TableSchema original, TableSchema updated) {
+        long taskGeneration = generation;
+        String schemaSha = schemaShas.get(original.name());
+        submit("Validating and saving schema " + original.name() + "...", token -> {
+            GitHubSession current = ensureSession(token);
+            List<DataRecord> existingRecords =
+                    records.list(owner, repository, branch, original, current, token);
+            tables.update(owner, repository, branch, original, updated, schemaSha,
+                    existingRecords, current, token);
+            PluginLog.info("Data Manager", "Updated schema " + original.name() + ".");
+            TableSchemaRepository.Catalog catalog = tables.discover(owner, repository, current, token);
+            TableSchema saved = catalog.schemas().stream()
+                    .filter(schema -> schema.name().equals(original.name())).findFirst()
+                    .orElseThrow(() -> new IOException("Updated schema was not returned by GitHub. Refresh and retry."));
+            List<DataRecord> refreshedRecords = records.list(
+                    owner, repository, catalog.branch(), saved, current, token);
+            if (generation == taskGeneration) {
+                branch = catalog.branch();
+                emptyRepository = catalog.emptyRepository();
+                currentSchemas = catalog.schemas();
+                schemaShas = catalog.schemaShas();
+                selectedSchema = saved;
+            }
+            ui(taskGeneration, () -> {
+                view.showCatalog(catalog.schemas(), catalog.isPrivate(), catalog.emptyRepository());
+                view.showRecords(saved, refreshedRecords);
+                view.showNotice("Updated schema for table " + saved.name() + ".");
+            });
         });
     }
 
@@ -183,6 +216,7 @@ public final class DataManagerController extends AbstractHandler implements Data
             branch = catalog.branch();
             emptyRepository = catalog.emptyRepository();
             currentSchemas = catalog.schemas();
+            schemaShas = catalog.schemaShas();
         }
         ui(taskGeneration, () -> {
             view.showCatalog(catalog.schemas(), catalog.isPrivate(), catalog.emptyRepository());

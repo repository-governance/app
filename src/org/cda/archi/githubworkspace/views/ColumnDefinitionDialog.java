@@ -26,6 +26,9 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
     private Combo type;
     private Button primary;
     private Button required;
+    private Button regexEnabled;
+    private Text pattern;
+    private Text validationMessage;
 
     ColumnDefinitionDialog(Shell parent, ColumnDefinition initial, Consumer<ColumnDefinition> result) {
         super(parent);
@@ -58,13 +61,34 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
         primary.addListener(SWT.Selection, e -> {
             if (primary.getSelection()) required.setSelection(true);
         });
+        regexEnabled = new Button(content, SWT.CHECK);
+        regexEnabled.setText("Validate with regular expression");
+        regexEnabled.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+        new Label(content, SWT.NONE).setText("Regex Pattern:");
+        pattern = new Text(content, SWT.BORDER);
+        pattern.setMessage("Example: ^[A-Z]{3}-[0-9]{4}$");
+        pattern.setToolTipText("Java regular expression; the complete value must match.");
+        pattern.setTextLimit(256);
+        pattern.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        new Label(content, SWT.NONE).setText("Validation Message:");
+        validationMessage = new Text(content, SWT.BORDER);
+        validationMessage.setMessage("Shown when the value does not match");
+        validationMessage.setToolTipText("This message appears next to the field when the regex does not match.");
+        validationMessage.setTextLimit(300);
+        validationMessage.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        type.addListener(SWT.Selection, event -> updateRegexControls());
+        regexEnabled.addListener(SWT.Selection, event -> updateRegexControls());
         if (initial != null) {
             name.setText(initial.name());
             type.select(java.util.Arrays.asList(type.getItems())
                     .indexOf(TableSchemaService.displayType(initial.type())));
             primary.setSelection(initial.primaryKey());
             required.setSelection(initial.required());
+            pattern.setText(initial.pattern());
+            validationMessage.setText(initial.validationMessage());
+            regexEnabled.setSelection(!initial.pattern().isEmpty());
         }
+        updateRegexControls();
         return area;
     }
 
@@ -72,11 +96,26 @@ final class ColumnDefinitionDialog extends TitleAreaDialog {
         try {
             if (type.getSelectionIndex() < 0) throw new IllegalArgumentException("Choose a data type.");
             DataType selected = DataType.parse(type.getItem(type.getSelectionIndex()));
+            if (selected == DataType.STRING && regexEnabled.getSelection() && pattern.getText().isEmpty()) {
+                throw new IllegalArgumentException("Enter a regular expression pattern or disable regex validation.");
+            }
             result.accept(new ColumnDefinition(name.getText().trim(), selected,
-                    primary.getSelection(), required.getSelection()));
+                    primary.getSelection(), required.getSelection(),
+                    selected == DataType.STRING && regexEnabled.getSelection() ? pattern.getText() : "",
+                    selected == DataType.STRING && regexEnabled.getSelection()
+                            ? validationMessage.getText() : ""));
             super.okPressed();
         } catch (IllegalArgumentException ex) {
             setErrorMessage(ex.getMessage());
         }
+    }
+
+    private void updateRegexControls() {
+        if (regexEnabled == null || regexEnabled.isDisposed()) return;
+        boolean stringType = type.getSelectionIndex() >= 0
+                && DataType.parse(type.getItem(type.getSelectionIndex())) == DataType.STRING;
+        regexEnabled.setEnabled(stringType);
+        pattern.setEnabled(stringType && regexEnabled.getSelection());
+        validationMessage.setEnabled(stringType && regexEnabled.getSelection());
     }
 }
