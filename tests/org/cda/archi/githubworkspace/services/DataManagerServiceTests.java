@@ -360,6 +360,9 @@ public final class DataManagerServiceTests {
                         String entryPath = String.valueOf(entry.get("path"));
                         Object sha = entry.get("sha");
                         Object content = entry.get("content");
+                        if (content != null && entry.containsKey("sha")) {
+                            return response(422, "{\"message\":\"Must supply either tree.sha or tree.content.\"}");
+                        }
                         if (sha == null && content == null) {
                             pendingTree.remove(entryPath);
                         } else if (content != null) {

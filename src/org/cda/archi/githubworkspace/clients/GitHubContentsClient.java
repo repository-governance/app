@@ -238,8 +238,8 @@ public final class GitHubContentsClient {
         entry.put("path", path);
         entry.put("mode", "100644");
         entry.put("type", "blob");
-        entry.put("sha", sha);
-        if (content != null) entry.put("content", content);
+        if (content == null) entry.put("sha", sha);
+        else entry.put("content", content);
         return entry;
     }
 
