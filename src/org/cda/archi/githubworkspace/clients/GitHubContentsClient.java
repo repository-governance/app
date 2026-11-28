@@ -180,8 +180,8 @@ public final class GitHubContentsClient {
             String oldSchemaSha, String newSchema, List<String[]> recordMoves,
             String token, CancellationToken cancellation) throws IOException, InterruptedException {
         String apiRoot = RestClient.API_ROOT + "/repos/" + segment(owner) + "/" + segment(repository);
-        URI refUri = URI.create(apiRoot + "/git/ref/heads/" + encodeRef(branch));
-        RestResponse ref = api.get(refUri, token, cancellation);
+        URI readRefUri = URI.create(apiRoot + "/git/ref/heads/" + encodeRef(branch));
+        RestResponse ref = api.get(readRefUri, token, cancellation);
         require(ref, 200, "Could not read the current data branch");
         String headSha = nestedSha(object(ref.body()), "object");
         RestResponse head = api.get(URI.create(apiRoot + "/git/commits/" + segment(headSha)), token, cancellation);
@@ -207,30 +207,72 @@ public final class GitHubContentsClient {
         treeEntries.add(treeEntry(newSchemaPath, null, newSchema));
         for (String[] move : recordMoves) {
             treeEntries.add(treeEntry(move[0], null, null));
-            treeEntries.add(treeEntry(move[2], move[1], null));
+            treeEntries.add(move.length > 3
+                    ? treeEntry(move[2], null, move[3])
+                    : treeEntry(move[2], move[1], null));
         }
 
+        publishTreeCommit(apiRoot, branch, headSha, baseTree,
+                "Rename table " + oldName + " to " + newName, treeEntries,
+                "tables/" + oldName, token, cancellation);
+    }
+
+    /** Atomically updates a schema and its migrated record documents. */
+    public void updateSchemaAndRecords(String owner, String repository, String branch, String tableName,
+            String schemaSha, String schemaContent, List<String[]> recordUpdates,
+            String token, CancellationToken cancellation) throws IOException, InterruptedException {
+        String apiRoot = RestClient.API_ROOT + "/repos/" + segment(owner) + "/" + segment(repository);
+        URI readRefUri = URI.create(apiRoot + "/git/ref/heads/" + encodeRef(branch));
+        RestResponse ref = api.get(readRefUri, token, cancellation);
+        require(ref, 200, "Could not read the current data branch");
+        String headSha = nestedSha(object(ref.body()), "object");
+        RestResponse head = api.get(URI.create(apiRoot + "/git/commits/" + segment(headSha)), token, cancellation);
+        require(head, 200, "Could not read the current data commit");
+        String baseTree = nestedSha(object(head.body()), "tree");
+
+        String schemaPath = "tables/" + tableName + "/schema.json";
+        RemoteFile currentSchema = read(owner, repository, schemaPath, branch, token, cancellation);
+        if (currentSchema == null || !schemaSha.equals(currentSchema.sha())) {
+            throw new IOException("The table schema changed in GitHub. Refresh before saving.");
+        }
+        List<Map<String, Object>> entries = new ArrayList<>();
+        entries.add(treeEntry(schemaPath, null, schemaContent));
+        for (String[] update : recordUpdates) {
+            RemoteFile currentRecord = read(owner, repository, update[0], branch, token, cancellation);
+            if (currentRecord == null || !update[1].equals(currentRecord.sha())) {
+                throw new IOException("A table record changed in GitHub. Refresh before saving.");
+            }
+            entries.add(treeEntry(update[0], null, update[2]));
+        }
+        publishTreeCommit(apiRoot, branch, headSha, baseTree,
+                "Migrate columns in table " + tableName, entries, schemaPath, token, cancellation);
+    }
+
+    private void publishTreeCommit(String apiRoot, String branch, String headSha, String baseTree,
+            String message, List<Map<String, Object>> treeEntries, String conflictPath,
+            String token, CancellationToken cancellation) throws IOException, InterruptedException {
         Map<String, Object> treeBody = new LinkedHashMap<>();
         treeBody.put("base_tree", baseTree);
         treeBody.put("tree", treeEntries);
         RestResponse tree = api.post(URI.create(apiRoot + "/git/trees"), token,
                 JsonWriter.write(treeBody), cancellation);
-        require(tree, 201, "Could not stage the table rename");
+        require(tree, 201, "Could not stage the table changes");
         String treeSha = str(object(tree.body()).get("sha"));
         Map<String, Object> commitBody = new LinkedHashMap<>();
-        commitBody.put("message", "Rename table " + oldName + " to " + newName);
+        commitBody.put("message", message);
         commitBody.put("tree", treeSha);
         commitBody.put("parents", List.of(headSha));
         RestResponse commit = api.post(URI.create(apiRoot + "/git/commits"), token,
                 JsonWriter.write(commitBody), cancellation);
-        require(commit, 201, "Could not create the table rename commit");
+        require(commit, 201, "Could not create the table changes commit");
         String commitSha = str(object(commit.body()).get("sha"));
-        RestResponse advanced = api.patch(refUri, token,
+        URI updateRefUri = URI.create(apiRoot + "/git/refs/heads/" + encodeRef(branch));
+        RestResponse advanced = api.patch(updateRefUri, token,
                 JsonWriter.write(Map.of("sha", commitSha, "force", false)), cancellation);
         if (advanced.statusCode() == 409 || advanced.statusCode() == 422) {
-            throw conflict(advanced, "tables/" + oldName);
+            throw conflict(advanced, conflictPath);
         }
-        require(advanced, 200, "Could not publish the table rename");
+        require(advanced, 200, "Could not publish the table changes");
     }
 
     private static Map<String, Object> treeEntry(String path, String sha, String content) {

@@ -2,6 +2,7 @@ package org.cda.archi.githubworkspace.views;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.cda.archi.githubworkspace.models.ColumnDefinition;
@@ -24,27 +25,31 @@ import org.eclipse.swt.widgets.Text;
 
 /** Runtime table designer. Creation is disabled until the schema is valid. */
 public final class CreateTableDialog extends TitleAreaDialog {
-    private final Consumer<TableSchema> created;
+    private final BiConsumer<TableSchema, java.util.Map<String, String>> saved;
     private final java.util.Set<String> existingNames;
     private final TableSchema initialSchema;
     private final List<ColumnDefinition> columns = new ArrayList<>();
+    private final java.util.Map<String, String> columnOrigins = new java.util.LinkedHashMap<>();
     private Text name;
     private Text description;
     private Table grid;
     private Button create;
 
     public CreateTableDialog(Shell parent, java.util.Set<String> existingNames, Consumer<TableSchema> created) {
-        this(parent, existingNames, null, created);
+        this(parent, existingNames, null, (schema, ignored) -> created.accept(schema));
     }
 
     public CreateTableDialog(Shell parent, java.util.Set<String> existingNames, TableSchema initialSchema,
-            Consumer<TableSchema> saved) {
+            BiConsumer<TableSchema, java.util.Map<String, String>> saved) {
         super(parent);
-        this.created = saved;
+        this.saved = saved;
         this.initialSchema = initialSchema;
         this.existingNames = existingNames.stream().map(name -> name.toLowerCase(java.util.Locale.ROOT))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        if (initialSchema != null) columns.addAll(initialSchema.columns());
+        if (initialSchema != null) {
+            columns.addAll(initialSchema.columns());
+            initialSchema.columns().forEach(column -> columnOrigins.put(column.name(), column.name()));
+        }
         setShellStyle(SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE | SWT.MAX);
         setBlockOnOpen(true);
     }
@@ -58,7 +63,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         setTitle(initialSchema == null ? "Create Table" : "Edit Table Schema");
         setMessage(initialSchema == null
                 ? "Define a table schema. Exactly one String, Integer, or UUID primary key is required."
-                : "Update the schema. Existing records must remain compatible. Renaming moves the table and its records.");
+                : "Update the schema. Existing records must remain compatible. Renames migrate their stored values.");
         Composite area = (Composite) super.createDialogArea(parent);
         Composite content = new Composite(area, SWT.NONE);
         content.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -114,7 +119,7 @@ public final class CreateTableDialog extends TitleAreaDialog {
         try {
             TableSchema schema = new TableSchema("1.0", name.getText().trim(),
                     description.getText().trim(), null, columns);
-            created.accept(schema);
+            saved.accept(schema, renamedColumns());
             super.okPressed();
         } catch (IllegalArgumentException ex) {
             setErrorMessage(ex.getMessage());
@@ -124,16 +129,25 @@ public final class CreateTableDialog extends TitleAreaDialog {
     private void editColumn(int index) {
         if (index < -1 || index >= columns.size()) return;
         ColumnDefinition old = index < 0 ? null : columns.get(index);
+        String originalColumnName = old == null ? null : columnOrigins.get(old.name());
         new ColumnDefinitionDialog(getShell(), old, value -> {
             if (index < 0) columns.add(value);
-            else columns.set(index, value);
+            else {
+                columnOrigins.remove(old.name());
+                columns.set(index, value);
+            }
+            if (originalColumnName != null) columnOrigins.put(value.name(), originalColumnName);
             redraw();
         }).open();
     }
 
     private void removeColumn() {
         int index = grid.getSelectionIndex();
-        if (index >= 0) { columns.remove(index); redraw(); }
+        if (index >= 0) {
+            columnOrigins.remove(columns.get(index).name());
+            columns.remove(index);
+            redraw();
+        }
     }
 
     private void move(int direction) {
@@ -187,6 +201,14 @@ public final class CreateTableDialog extends TitleAreaDialog {
         }
         setErrorMessage(error);
         if (create != null && !create.isDisposed()) create.setEnabled(error == null);
+    }
+
+    private java.util.Map<String, String> renamedColumns() {
+        java.util.Map<String, String> result = new java.util.LinkedHashMap<>();
+        columnOrigins.forEach((currentName, originalName) -> {
+            if (!currentName.equals(originalName)) result.put(originalName, currentName);
+        });
+        return java.util.Map.copyOf(result);
     }
 
     private static void action(Composite parent, String title, Runnable task) {

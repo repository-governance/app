@@ -164,14 +164,14 @@ public final class DataManagerServiceTests {
                     schemaRepository.read("owner", "data", loaded.branch(), schema.name(), session, token);
             TableSchemaManager tableManager = new TableSchemaManager(schemaRepository, validation);
             tableManager.update("owner", "data", loaded.branch(), schema, withPattern, storedSchema.sha(),
-                    List.of(), session, token);
+                    List.of(), Map.of(), session, token);
             TableSchemaRepository.Catalog updatedCatalog = schemaRepository.discover("owner", "data", session, token);
             check(updatedCatalog.schemas().get(0).equals(withPattern)
                     && !updatedCatalog.schemaShas().get("architects").equals(storedSchema.sha()),
                     "Existing schema edits persist via its original Contents SHA");
             assertions++;
             expect(java.io.IOException.class, () -> schemaRepository.update("owner", "data", loaded.branch(),
-                    schema, schema, storedSchema.sha(), List.of(), session, token),
+                    schema, schema, storedSchema.sha(), List.of(), false, session, token),
                     "Concurrent schema changes are rejected using stale SHA");
             assertions++;
             TableSchema activeSchema = withPattern;
@@ -191,7 +191,7 @@ public final class DataManagerServiceTests {
                     activeSchema.primaryKey(), requiredAddition);
             expect(java.io.IOException.class, () -> tableManager.update("owner", "data", loaded.branch(),
                     activeSchema, incompatible, updatedCatalog.schemaShas().get(activeSchema.name()),
-                    read, session, token),
+                    read, Map.of(), session, token),
                     "Schema updates cannot make existing records fail required-field validation");
             List<ColumnDefinition> newPrimaryColumns = new ArrayList<>(activeSchema.columns());
             newPrimaryColumns.set(0, new ColumnDefinition("id", DataType.STRING, false, true,
@@ -201,7 +201,7 @@ public final class DataManagerServiceTests {
                     activeSchema.description(), "newId", newPrimaryColumns);
             expect(java.io.IOException.class, () -> tableManager.update("owner", "data", loaded.branch(),
                     activeSchema, changedPrimary, updatedCatalog.schemaShas().get(activeSchema.name()),
-                    read, session, token),
+                    read, Map.of(), session, token),
                     "Primary-key identity cannot change while records exist");
             assertions += 2;
             expect(java.io.IOException.class, () -> records.create("owner", "data", loaded.branch(), activeSchema,
@@ -220,7 +220,7 @@ public final class DataManagerServiceTests {
             TableSchema renamedSchema = new TableSchema("1.0", "architects_archive",
                     activeSchema.description(), activeSchema.primaryKey(), activeSchema.columns());
             tableManager.update("owner", "data", loaded.branch(), activeSchema, renamedSchema,
-                    updatedCatalog.schemaShas().get(activeSchema.name()), List.of(updated), session, token);
+                    updatedCatalog.schemaShas().get(activeSchema.name()), List.of(updated), Map.of(), session, token);
             TableSchemaRepository.Catalog renamedCatalog =
                     schemaRepository.discover("owner", "data", session, token);
             String oldRecordPath = DataRecordRepository.recordPath(activeSchema, "AS117");
@@ -230,13 +230,32 @@ public final class DataManagerServiceTests {
                     && !api.files.containsKey(oldRecordPath) && api.files.containsKey(newRecordPath),
                     "Table rename moves its schema and record blob atomically to the new folder");
             assertions++;
-            records.delete("owner", "data", loaded.branch(), renamedSchema, updated, session, token);
-            check(records.list("owner", "data", loaded.branch(), renamedSchema, session, token).isEmpty(),
+            List<ColumnDefinition> renamedColumns = new ArrayList<>(renamedSchema.columns());
+            renamedColumns.set(1, new ColumnDefinition("displayName", DataType.TEXT, false, true));
+            TableSchema renamedAttributeSchema = new TableSchema("1.0", renamedSchema.name(),
+                    renamedSchema.description(), renamedSchema.primaryKey(), renamedColumns);
+            tableManager.update("owner", "data", loaded.branch(), renamedSchema, renamedAttributeSchema,
+                    renamedCatalog.schemaShas().get(renamedSchema.name()), List.of(updated),
+                    Map.of("fullName", "displayName"), session, token);
+            TableSchemaRepository.Catalog migratedCatalog =
+                    schemaRepository.discover("owner", "data", session, token);
+            List<DataRecord> migratedRecords = records.list(
+                    "owner", "data", loaded.branch(), renamedAttributeSchema, session, token);
+            check(migratedRecords.size() == 1
+                    && migratedRecords.get(0).value("displayName").equals("Ana García")
+                    && !migratedRecords.get(0).values().containsKey("fullName")
+                    && migratedCatalog.schemas().contains(renamedAttributeSchema),
+                    "Renaming a column migrates existing JSON keys together with the schema");
+            assertions++;
+            records.delete("owner", "data", loaded.branch(), renamedAttributeSchema,
+                    migratedRecords.get(0), session, token);
+            check(records.list("owner", "data", loaded.branch(), renamedAttributeSchema, session, token).isEmpty(),
                     "Delete uses fetched SHA and removes only after remote success");
             assertions++;
             check(api.lastContentWasUtf8 && api.lastDeleteBody.contains("\"sha\"")
                     && api.lastMessage.equals("Delete record architects_archive/AS117") && api.observedBranch.equals("main")
-                    && api.renamePublished,
+                    && api.renamePublished
+                    && api.refUpdatePath.equals("/repos/owner/data/git/refs/heads/main"),
                     "Contents writes use Base64 UTF-8, branch and SHA with descriptive commit messages");
             assertions++;
         } finally {
@@ -276,6 +295,7 @@ public final class DataManagerServiceTests {
         private String headSha = "commit";
         private Map<String, Stored> pendingTree;
         private boolean renamePublished;
+        private String refUpdatePath = "";
 
         @Override public RestResponse get(URI uri, String bearerToken, CancellationToken cancellation) {
             String path = uri.getPath();
@@ -397,6 +417,10 @@ public final class DataManagerServiceTests {
 
         @Override public RestResponse patch(URI uri, String bearerToken, String jsonBody,
                 CancellationToken cancellation) {
+            refUpdatePath = uri.getPath();
+            if (!refUpdatePath.equals("/repos/owner/data/git/refs/heads/main")) {
+                return response(404, "{\"message\":\"Not Found\"}");
+            }
             Map<?, ?> body = (Map<?, ?>) JsonParser.parse(jsonBody);
             if (!Boolean.FALSE.equals(body.get("force")) || pendingTree == null) {
                 return response(422, "{\"message\":\"Invalid ref update\"}");

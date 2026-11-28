@@ -43,7 +43,7 @@ public final class DataManagerDialog extends TitleAreaDialog {
         void refresh();
         void selectTable(TableSchema schema);
         void createTable(TableSchema schema);
-        void updateTableSchema(TableSchema original, TableSchema updated);
+        void updateTableSchema(TableSchema original, TableSchema updated, java.util.Map<String, String> renamedColumns);
         void createRecord(TableSchema schema, java.util.Map<String, String> values);
         void updateRecord(TableSchema schema, DataRecord original, java.util.Map<String, String> values);
         void deleteRecord(TableSchema schema, DataRecord record);
@@ -308,8 +308,8 @@ public final class DataManagerDialog extends TitleAreaDialog {
             if (original == null) return;
             new CreateTableDialog(getShell(),
                     allSchemas.stream().map(TableSchema::name).collect(java.util.stream.Collectors.toSet()),
-                    original, updated -> {
-                        if (listener != null) listener.updateTableSchema(original, updated);
+                    original, (updated, renamedColumns) -> {
+                        if (listener != null) listener.updateTableSchema(original, updated, renamedColumns);
                     }).open();
         });
 

@@ -131,7 +131,8 @@ public final class DataManagerController extends AbstractHandler implements Data
         });
     }
 
-    @Override public void updateTableSchema(TableSchema original, TableSchema updated) {
+    @Override public void updateTableSchema(TableSchema original, TableSchema updated,
+            Map<String, String> renamedColumns) {
         long taskGeneration = generation;
         String schemaSha = schemaShas.get(original.name());
         submit("Validating and saving schema " + original.name() + "...", token -> {
@@ -143,7 +144,7 @@ public final class DataManagerController extends AbstractHandler implements Data
             List<DataRecord> existingRecords =
                     records.list(owner, repository, branch, original, current, token);
             tables.update(owner, repository, branch, original, updated, schemaSha,
-                    existingRecords, current, token);
+                    existingRecords, renamedColumns, current, token);
             PluginLog.info("Data Manager", "Updated schema " + original.name() + ".");
             TableSchemaRepository.Catalog catalog = tables.discover(owner, repository, current, token);
             TableSchema saved = catalog.schemas().stream()

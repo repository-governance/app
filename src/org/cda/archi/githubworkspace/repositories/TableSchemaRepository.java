@@ -113,7 +113,8 @@ public final class TableSchemaRepository {
     }
 
     public String update(String owner, String repo, String branch, TableSchema original, TableSchema schema,
-            String originalSha, List<DataRecord> records, GitHubSession session, CancellationToken cancellation)
+            String originalSha, List<DataRecord> records, boolean migrateRecords,
+            GitHubSession session, CancellationToken cancellation)
             throws IOException, InterruptedException {
         if (originalSha == null || originalSha.isBlank()) {
             throw new IOException("The schema SHA is unavailable. Refresh the table catalog before editing.");
@@ -132,15 +133,36 @@ public final class TableSchemaRepository {
                 if (key == null || record.sha() == null || record.sha().isBlank()) {
                     throw new IOException("A record is missing its primary key or GitHub SHA; refresh and retry.");
                 }
-                moves.add(new String[] {
-                        DataRecordRepository.recordPath(original, key),
-                        record.sha(),
-                        DataRecordRepository.recordPath(schema, key)
-                });
+                String[] move = new String[] {
+                    DataRecordRepository.recordPath(original, key),
+                    record.sha(),
+                    DataRecordRepository.recordPath(schema, key)
+                };
+                moves.add(migrateRecords
+                        ? new String[] {move[0], move[1], move[2],
+                                org.cda.archi.githubworkspace.infrastructure.JsonWriter.write(record.values()) + "\n"}
+                        : move);
             }
             client.moveTable(owner, repo, branch, original.name(), schema.name(), originalSha,
                     schemas.serialize(schema), moves, session.tokenForRequest(), cancellation);
             return "renamed";
+        }
+        if (migrateRecords) {
+            List<String[]> updates = new ArrayList<>();
+            for (DataRecord record : records) {
+                Object key = record.values().get(schema.primaryKey());
+                if (key == null || record.sha() == null || record.sha().isBlank()) {
+                    throw new IOException("A record is missing its primary key or GitHub SHA; refresh and retry.");
+                }
+                updates.add(new String[] {
+                        DataRecordRepository.recordPath(schema, key),
+                        record.sha(),
+                        org.cda.archi.githubworkspace.infrastructure.JsonWriter.write(record.values()) + "\n"
+                });
+            }
+            client.updateSchemaAndRecords(owner, repo, branch, schema.name(), originalSha,
+                    schemas.serialize(schema), updates, session.tokenForRequest(), cancellation);
+            return "migrated";
         }
         String path = "tables/" + schema.name() + "/schema.json";
         return client.put(owner, repo, path, branch, schemas.serialize(schema),
